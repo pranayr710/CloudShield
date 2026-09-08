@@ -74,7 +74,7 @@ ml/
 │   ├── 03_classification.ipynb # Review 1 Part A, extended in Review 2 Part B
 │   └── 04_clustering.ipynb   # Review 2
 ├── src/
-│   ├── data_prep.py          # load, clean, engineer, split, scale (single source of truth)
+│   ├── `src/preprocessing/`          # load, clean, engineer, split, scale (single source of truth)
 │   ├── metrics.py            # regression + classification metric table builders
 │   └── plotting.py           # styled plot helpers
 ├── models/                   # joblib .pkl of best models
@@ -82,14 +82,17 @@ ml/
 └── app/                      # Streamlit app (Review 2 bonus)
 ```
 
-`src/data_prep.py` is the key anti-mark-loss device: both the regression and classification notebooks import the **same** cleaning + split function, guaranteeing an identical preprocessed dataset and a defensible "no leakage" story in the viva.
+`src/preprocessing/` is the key anti-mark-loss device: both the regression and classification notebooks import the **same** cleaning + split function, guaranteeing an identical preprocessed dataset and a defensible "no leakage" story in the viva.
 
 ---
 
 ## 3. Dataset & track targets (UNSW-NB15)
 
 **Files:** `UNSW_NB15_training-set.csv` (175,341 rows) and `UNSW_NB15_testing-set.csv` (82,332 rows), 45 columns.
-Source: UNSW Canberra ADFA research page, or the Kaggle mirror `mrwellsdavid/unsw-nb15`.
+**Where to get it** (verified Sept 2026 — the widely-cited CloudStor link is dead, AARNet decommissioned it):
+- **Official:** <https://research.unsw.edu.au/projects/unsw-nb15-dataset> → the "download" link goes to a UNSW SharePoint folder. Inside: `CSV Files/Training and Testing Sets/`. Free for academic use in perpetuity; cite Moustafa & Slay (2015).
+- **Kaggle mirrors (faster, no registration wall):** `dhoogla/unswnb15`, `mrwellsdavid/unsw-nb15`, `harshwardhanbhangale/unsw-complete-dataset`, `ucimachinelearning/unsw-nb15-dataset`.
+- Take **only** `UNSW_NB15_training-set.csv` (175,341 × 45) and `UNSW_NB15_testing-set.csv` (82,332 × 45). Ignore `UNSW-NB15_1..4.csv` (the 2.54M-row raw dump, 49 cols, no header row) unless you deliberately want the full set.
 
 **Columns of interest**
 - Categorical: `proto`, `service`, `state`
@@ -105,15 +108,54 @@ Source: UNSW Canberra ADFA research page, or the Kaggle mirror `mrwellsdavid/uns
 ### Track 1 — Regression (Review 1)
 **Target: `sloss`** — source packets retransmitted or dropped = direct QoS degradation signal.
 
-⚠️ **Leakage trap you must handle and be able to defend in the viva:** `sloss` is bounded by `spkts` and strongly correlated with `sbytes`. Leaving them in gives an inflated R² (~0.99) that is scientifically hollow.
+> ⚠️ **Superseded by measurement.** The audit in `DATA_AUDIT.md` (findings 4 and 5) corrected
+> three things in this section's original draft. Read that file before coding.
 
-**Decision — run two framings and report both:**
-- **Model A (naive):** all features. Expect R² ≈ 0.98+. Present it, then explicitly name the near-tautological relationship `sloss ≤ spkts`.
-- **Model B (honest, this is your headline):** drop `spkts`, `sbytes`, `sload` and predict `sloss` from timing, TTL, protocol, jitter and connection-history features. R² will be far lower and the model comparison becomes genuinely informative.
+**1. The leaky column list is five columns, not three.** Verified on the real data:
 
-That contrast alone is worth strong marks on A3/C4 commentary and is an excellent viva answer.
+| Column | Relationship to `sloss` |
+|---|---|
+| `sbytes` | r = 0.9967 |
+| `spkts` | r = 0.9738, and `sloss <= spkts` by definition |
+| `smean` | `== sbytes / spkts` exactly, 100% of rows |
+| `sload` | `~= sbytes * 8 / dur`, r = 0.998 |
+| `rate` | `~= (spkts + dpkts - 1) / dur`, 99.7% exact |
 
-**Alternative target** if you prefer a bounded quantity: `loss_rate = sloss / (spkts + 1e-6)`.
+Use `get_dataset("regression", drop_leaky=True)`.
+
+**2. Use `log1p(sloss)` as the primary target.** Ten test rows carry **62.7%** of `sloss`'s
+total variance and 100 rows carry 98.7%. On the raw scale every tree model scores R² ~ 0.998
+regardless of framing, so the rubric's "ranked by R²" table becomes ten identical numbers.
+On `log1p` the model families separate properly:
+
+| Framing | Linear | Random Forest |
+|---|---|---|
+| raw `sloss`, all features | 0.6926 | 0.9985 |
+| raw `sloss`, drop_leaky | 0.6818 | 0.9984 |
+| **log1p, all features** | 0.9633 | 0.9988 |
+| **log1p, drop_leaky** | **0.8591** | **0.9966** |
+
+Pass `log_target=True`. Report R²/RMSE in log space, and MAE back-transformed with
+`np.expm1()` so the error stays readable in packets.
+
+**3. Removing the leaky columns does NOT collapse R² — and that is a real finding.**
+A shuffled-target control scores R² = −0.097, so there is no structural leak; Argus simply
+derives all 40-odd flow statistics from one packet stream, making them mutually constraining.
+Present the ablation instead of a single number:
+
+| Feature set | RF R² |
+|---|---|
+| everything | 0.9992 |
+| − 5 leaky columns | 0.9981 |
+| − also `sinpkt` | 0.9926 |
+| − also `dbytes`, `dpkts`, `dmean` | 0.9707 |
+| − also `dur`, `dinpkt`, `dload`, `iat_ratio` | 0.6999 |
+
+Only when duration goes does the target become genuinely hard. This ablation is a much
+stronger deliverable than "our R² was 0.99".
+
+**Still run both framings** (all-features vs `drop_leaky`) and name the `sloss <= spkts`
+tautology yourself before an examiner does.
 
 ### Track 2 — Classification (Part A Review 1, Part B Review 2)
 **Target: `attack_cat`** — 10 classes. Severe imbalance (`Worms` ≈ 130 rows, `Generic` ≈ 40k). Handle with `class_weight='balanced'` where supported and **SMOTE fitted on the training fold only**; report macro-F1 alongside the mandatory weighted-F1 so the rare classes are visible.
@@ -125,20 +167,25 @@ Drop `attack_cat` and `label` entirely. Cluster on scaled numeric flow statistic
 
 ## 4. Feature engineering (rubric B3 — needs written justification)
 
-Create these in `src/data_prep.py`, computed **after** the split from raw columns only (no target statistics):
+**Implemented in `src/preprocessing/cleaning.py::engineer_features()`. Full justifications and the
+empirical evidence they earn their place are in `DATA_AUDIT.md`.**
 
-| Feature | Formula | Justification to write in the notebook |
-|---|---|---|
-| `loss_ratio_dst` | `dloss / (dpkts + 1e-6)` | Destination-side loss fraction; normalises loss by volume so a 10-packet flow and a 10k-packet flow are comparable. (For the regression track this is a *destination-side* quantity, so it does not leak the source-side target.) |
-| `bytes_per_pkt_src` | `sbytes / (spkts + 1e-6)` | Mean payload size; scans use tiny uniform packets, exfiltration uses large ones. |
-| `dir_asymmetry` | `abs(sbytes - dbytes) / (sbytes + dbytes + 1e-6)` | Upload/download imbalance — near 1 for DoS floods and exfiltration, near 0 for normal browsing. |
-| `jitter_ratio` | `sjit / (djit + 1e-6)` | One-sided jitter indicates a congested or attacked direction — a direct QoS degradation proxy. |
-| `ttl_diff` | `sttl - dttl` | Spoofed/crafted packets in Fuzzers and Exploits show anomalous TTL asymmetry; a classic IDS heuristic. |
-| `handshake_share` | `(synack + ackdat) / (tcprtt + 1e-6)` | Fraction of RTT spent on handshake — half-open connection attacks push this abnormally. |
+Six features valid in every framing: `dst_loss_ratio`, `ttl_diff`, `jitter_ratio`,
+`iat_ratio`, `no_dst_response`, `conn_fanout`. Two more (`pkt_dir_ratio`,
+`byte_dir_asymmetry`) are useful for classification and clustering but are algebraic
+descendants of the leaky columns, so `drop_leaky=True` removes them.
 
-Use 4–6 of these; each needs one Markdown paragraph. Prove usefulness by showing the engineered features appearing in the Random-Forest / GBM importance plot (C4).
+> ⚠️ **Two candidates from this plan's first draft were rejected after measurement:**
+> - `bytes_per_pkt_src = sbytes / spkts` — **already exists as `smean`**, identical in 100% of
+>   rows. Claiming it as engineered would be wrong and easy for an examiner to catch.
+> - `handshake_share = (synack + ackdat) / tcprtt` — **identically 1.0 everywhere**, because
+>   `tcprtt` is *defined* as `synack + ackdat`. A zero-variance column.
+>
+> Do not reintroduce either.
 
----
+**Evidence they work:** `iat_ratio` ranks 4th of 65 RF importances in the honest regression
+framing (0.061, ahead of `dur` and every categorical dummy); `dst_loss_ratio` alone reaches
+R² = 0.5445 as a single-feature decision tree.
 
 ## 5. Preprocessing pipeline (identical for both Review-1 tracks)
 
@@ -220,7 +267,7 @@ Five algorithms on the same split, target `attack_cat`:
 | 1 | `requirements.txt`, folder skeleton, `.gitignore` | `Initialise project structure and dependencies` |
 | 2 | `data/download_data.py`, raw CSVs in place | `Add dataset download script` |
 | 3 | `notebooks/01_eda.ipynb` — audit + all EDA plots + commentary | `Add dataset audit and EDA with commentary` |
-| 4 | `src/data_prep.py` — clean, engineer, split, scale | `Add shared preprocessing and feature engineering module` |
+| 4 | `src/preprocessing/` — clean, engineer, split, scale | `Add shared preprocessing and feature engineering module` |
 | 5 | `notebooks/02_regression.ipynb` — 10 models + table | `Train all 10 regression models with comparison table` |
 | 6 | tuning + plots | `Add GridSearchCV tuning and diagnostic plots for regression` |
 | 7 | `notebooks/03_classification.ipynb` — 5 Part-A models | `Add classification Part A: 5 algorithms with confusion matrices` |
@@ -241,7 +288,7 @@ Aim for ≥8 commits before Review 1. Push after each step, not at the end.
 - Why is `sloss` a valid QoS-degradation proxy, and what does the `spkts` leakage caveat mean?
 - Why do ensembles beat linear regression here?
 - Why is Gaussian Naive Bayes weak — are flow features conditionally independent?
-- How did you prevent data leakage? (fit-on-train-only, one shared `data_prep` module)
+- How did you prevent data leakage? (fit-on-train-only, one shared `src.preprocessing` module)
 - How did you handle `Worms`/`Backdoor` imbalance, and why is macro-F1 reported next to weighted-F1?
 - Why does stratification matter for both tracks?
 - What does the Elbow curve tell you about traffic behaviour? (Review 2)

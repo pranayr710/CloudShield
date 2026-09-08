@@ -16,14 +16,14 @@ Rename "Person A/B/C" to real names in each file before you start.
 
 ## The one hard dependency
 
-**Person A owns `src/data_prep.py`. B and C both consume it. Nobody can produce real numbers until it is frozen.**
+**Person A owns `src/preprocessing/`. B and C both consume it. Nobody can produce real numbers until it is frozen.**
 
 To stop B and C sitting idle for a week, A publishes the **function contract on Day 1** (before writing the body). B and C write all their model code against that contract using a fake DataFrame, then swap in the real one at gate **M2**. This is the single most important coordination move in the project — do not skip it.
 
 ### The contract (frozen Day 1, body delivered at M2)
 
 ```python
-# src/data_prep.py
+# src/preprocessing/config.py
 RANDOM_STATE = 42
 
 def get_dataset(
@@ -56,7 +56,7 @@ Ordered. "Blocks" means the listed people cannot proceed past a specific task un
 |---|---|---|---|---|
 | **M0** | 1 | A (all present) | Repo + git + `requirements.txt` + contract frozen | B, C — everything |
 | **M1** | 3 | A | `data/raw/*.csv` present + `download_data.py` + audit output | B-T4, C-T4 (real data inspection) |
-| **M2** | 5 | A | **`src/data_prep.py` frozen + `data/processed/*.parquet`** | **B-T6, C-T6 — the big one** |
+| **M2** | 5 | A | **`src/preprocessing/` frozen + `data/processed/*.parquet`** | **B-T6, C-T6 — the big one** |
 | **M3** | 8 | B, C | B: 10 regressors trained. C: 5 classifiers trained | A-T9 (figure export) |
 | **M4** | 10 | B, C | B: tuning + diagnostic plots. C: confusion matrices + ROC | — |
 | **M5** | 12 | A | EDA notebook final + README draft + `reports/figures/` | all — slides |
@@ -70,7 +70,7 @@ Days are **relative**. If you have 3 weeks, multiply by 1.5. If you have 8 days,
 
 ```
 Day   1    2    3    4    5    6    7    8    9   10   11   12   13
-A   [repo][download][EDA──────][data_prep][support/README──][figures][dry run]
+A   [repo][download][EDA──────][preproc  ][support/README──][figures][dry run]
                       ▲M1        ▲M2                          ▲M5      ▲M6
 B   [scaffold+mock models────────][real training───][tuning+plots][slides][dry run]
                                   ▲M2 unblocks       ▲M3      ▲M4
@@ -88,7 +88,7 @@ Nobody is blocked for more than ~half a day if the contract is honoured.
 
 | File / folder | Owner |
 |---|---|
-| `src/data_prep.py`, `src/plotting.py` | **A** |
+| `src/preprocessing/`, `src/plotting.py` | **A** |
 | `notebooks/01_eda.ipynb`, `notebooks/04_clustering.ipynb` | **A** |
 | `data/download_data.py`, `data/` | **A** |
 | `src/metrics_reg.py` | **B** |
@@ -117,7 +117,7 @@ Metrics helpers are deliberately split into two files so B and C never touch the
 
 - `random_state=42` **everywhere** — `train_test_split`, every model, `GridSearchCV`, `KMeans`, `TSNE`.
 - `test_size=0.2`, `stratify=attack_cat` — identical split across all three tracks.
-- Scalers/encoders **fit on train only**. This lives inside `data_prep.py` so nobody can get it wrong individually.
+- Scalers/encoders **fit on train only**. This lives inside `src/preprocessing/` so nobody can get it wrong individually.
 - Every plot: title, axis labels, legend where applicable, `plt.tight_layout()`, palette `'colorblind'` / `'tab10'` / `'Set2'`.
 - Every plot saved: `plt.savefig(f'../reports/figures/<track>_<name>.png', dpi=150, bbox_inches='tight')`.
 - Every major visualisation gets a **Markdown cell underneath it** with a written observation. This is rubric A3 — 1 full mark — and it is the easiest mark in the project to lose.

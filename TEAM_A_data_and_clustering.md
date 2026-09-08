@@ -14,7 +14,7 @@
 
 | You are blocked by | Nobody. You start immediately. |
 |---|---|
-| **You block** | **Person B** at their task B-T6, **Person C** at their task C-T6 — both need `src/data_prep.py` + processed data (your gate **M2**, target Day 5). |
+| **You block** | **Person B** at their task B-T6, **Person C** at their task C-T6 — both need `src/preprocessing/` + processed data (your gate **M2**, target Day 5). |
 | **You wait for** | B and C to finish M3 (Day 8) before you can export final figures (A-T9) and assemble slides. |
 
 **If you slip on M2, the entire project slips by the same number of days.** If you're going to be late, tell B and C the moment you know, so they extend their mock-data phase instead of sitting idle.
@@ -58,7 +58,7 @@ env/
 !models/best_*.pkl
 ```
 
-- [ ] Create `src/__init__.py` (empty) so `from src.data_prep import ...` works.
+- [ ] Create `src/__init__.py` (empty) so `from src.preprocessing import ...` works.
 - [ ] Create a GitHub repo (private or public — ask the instructor), add B and C as collaborators.
 - [ ] **Commit:** `Initialise project structure and gitignore`
 
@@ -93,11 +93,11 @@ Currently only `numpy`, `scipy` and `matplotlib` are installed on this machine. 
 
 ---
 
-### ☐ A-T3. **Freeze and publish the `data_prep` contract** ⚠️ CRITICAL — unblocks B and C on Day 1
+### ☐ A-T3. **Freeze and publish the `src.preprocessing` contract** ⚠️ CRITICAL — unblocks B and C on Day 1
 
-Write `src/data_prep.py` as a **stub with the real signature and docstring but a `NotImplementedError` body**, plus a working `make_mock_dataset()` so B and C can develop against fake data immediately.
+Write `src/preprocessing/` as a **stub with the real signature and docstring but a `NotImplementedError` body**, plus a working `make_mock_dataset()` so B and C can develop against fake data immediately.
 
-- [ ] Create `src/data_prep.py`:
+- [ ] Create the package under `src/preprocessing/`:
 
 ```python
 """Shared preprocessing for all three tracks. Owner: Person A.
@@ -157,10 +157,10 @@ def make_mock_dataset(task, n=2000, n_features=40, random_state=RANDOM_STATE):
             "meta": {"mock": True}}
 ```
 
-- [ ] **Commit:** `Add data_prep contract and mock dataset generator`
+- [ ] **Commit:** `Add preprocessing contract and mock dataset generator`
 - [ ] **Post in team chat: "M0 done — contract frozen, mock available, start your model code."**
 
-**Acceptance:** `from src.data_prep import make_mock_dataset; make_mock_dataset("regression")` runs. B and C are now unblocked for a full 4 days of parallel work.
+**Acceptance:** `from src.preprocessing import make_mock_dataset; make_mock_dataset("regression")` runs. B and C are now unblocked for a full 4 days of parallel work.
 
 ---
 
@@ -168,9 +168,12 @@ def make_mock_dataset(task, n=2000, n_features=40, random_state=RANDOM_STATE):
 
 ### ☐ A-T4. Download UNSW-NB15
 
-- [ ] Source options (try in order):
-  1. **Kaggle:** dataset `mrwellsdavid/unsw-nb15` → files `UNSW_NB15_training-set.csv` (175,341 rows) and `UNSW_NB15_testing-set.csv` (82,332 rows), 45 columns each.
-  2. UNSW Canberra / ADFA official research page (registration may be required).
+- [ ] Source options (verified Sept 2026 — the CloudStor link in older tutorials is **dead**):
+  1. **Kaggle (fastest).** Any of these mirrors: `dhoogla/unswnb15`, `mrwellsdavid/unsw-nb15`, `harshwardhanbhangale/unsw-complete-dataset`, `ucimachinelearning/unsw-nb15-dataset`. Open the **Data** tab and confirm the file list before downloading — mirrors vary.
+  2. **Official (authoritative — cite this one in the README).** <https://research.unsw.edu.au/projects/unsw-nb15-dataset> → download link goes to a UNSW SharePoint folder → `CSV Files/Training and Testing Sets/`.
+- [ ] You want exactly two files: `UNSW_NB15_training-set.csv` (175,341 × 45) and `UNSW_NB15_testing-set.csv` (82,332 × 45).
+- [ ] ⚠️ **Do not grab `UNSW-NB15_1.csv` … `_4.csv`** — that's the 2.54M-row raw dump with **49** columns, **no header row**, different column names, and blank cells for benign `attack_cat`. It needs `NUSW-NB15_features.csv` to name the columns. Everything in this plan assumes the 45-column training/testing partition.
+- [ ] Cite in the README: Moustafa, N. & Slay, J. (2015), *UNSW-NB15: a comprehensive data set for network intrusion detection systems*, MilCIS. Free for academic use in perpetuity.
 - [ ] Place both CSVs in `data/raw/`. **Do not commit them** — `.gitignore` already excludes them.
 - [ ] Write `data/download_data.py` so the repo is reproducible without the CSVs:
 
@@ -327,7 +330,7 @@ Replace the `NotImplementedError` body. Keep the signature identical.
 - [ ] Calling it twice gives identical arrays (determinism check)
 
 - [ ] **Commit:** `Implement cleaning, feature engineering, stratified split and scaling`
-- [ ] **🚩 GATE M2 — post in chat: "data_prep.py is live. Swap out make_mock_dataset() and run for real."**
+- [ ] **🚩 GATE M2 — post in chat: "`src/preprocessing/` is live. Swap out make_mock_dataset() and run for real."**
 
 ---
 
@@ -336,7 +339,7 @@ Replace the `NotImplementedError` body. Keep the signature identical.
 You are now off the critical path. Your job shifts to unblocking others and to documentation.
 
 ### ☐ A-T9. On-call for B and C
-- [ ] Expect bug reports against `data_prep.py` in the first 24h after M2. Fix fast — they're blocked while you don't.
+- [ ] Expect bug reports against `src/preprocessing/` in the first 24h after M2. Fix fast — they're blocked while you don't.
 - [ ] If B or C asks for a signature change, evaluate it once and change it for both at the same time. Never make two separate changes.
 
 ### ☐ A-T10. Finish `01_eda.ipynb`
@@ -405,7 +408,7 @@ Start only after Review 1 is presented. Full detail in `PLAN.md` §8.
 
 1. `Initialise project structure and gitignore`
 2. `Add pinned Python dependencies`
-3. `Add data_prep contract and mock dataset generator`
+3. `Add preprocessing contract and mock dataset generator`
 4. `Add dataset download script with shape assertions`
 5. `Add dataset audit with shape, dtypes, missing values and class distribution`
 6. `Add shared plotting style helpers`

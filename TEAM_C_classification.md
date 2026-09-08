@@ -14,7 +14,7 @@
 
 ## Your dependency summary
 
-| You are blocked by | **Person A** — you need `src/data_prep.py` (gate **M2**, target Day 5). |
+| You are blocked by | **Nothing — `src/preprocessing/` is already delivered and verified (gate M2 met).** Skip the mock phase; set `USE_MOCK = False` from the start. |
 |---|---|
 | **What A must finish for you to start at all** | **A-T3** (contract + `make_mock_dataset`), target Day 1. Then 4 full days of parallel work on mock data. |
 | **What A must finish for you to produce real results** | **A-T8 → gate M2**. Specifically you need `label_encoder` populated with the real 10 classes. |
@@ -39,7 +39,28 @@
 
 Write this as a Markdown cell at the top of your notebook.
 
-- **10 classes, brutally imbalanced.** Roughly: `Normal` ≈ 93k, `Generic` ≈ 58k, `Exploits` ≈ 44k, `Fuzzers` ≈ 24k, `DoS` ≈ 16k, `Reconnaissance` ≈ 14k, `Analysis` ≈ 2.7k, `Backdoor` ≈ 2.3k, `Shellcode` ≈ 1.5k, `Worms` ≈ 174. That's a **> 500:1** ratio between the largest and smallest class. (Confirm the exact numbers from A's audit at M1.)
+- **10 classes, brutally imbalanced.** Measured **after deduplication** (`DATA_AUDIT.md` finding 3), train/test split:
+
+  | Class | Train | Test |
+  |---|---|---|
+  | Normal | 68,578 | 17,144 |
+  | Exploits | 21,947 | 5,487 |
+  | Fuzzers | 16,768 | 4,192 |
+  | Reconnaissance | 7,993 | 1,998 |
+  | Generic | 6,079 | 1,520 |
+  | DoS | 4,400 | 1,100 |
+  | Analysis | 1,625 | 407 |
+  | Backdoor | 1,504 | 376 |
+  | Shellcode | 1,165 | 291 |
+  | Worms | **137** | **34** |
+
+  A **500:1** ratio between `Normal` and `Worms`.
+
+- ⚠️ **`Generic` is not the second-largest class, contrary to every paper on this dataset.**
+  Deduplication cut it by **87%** (58,871 → 7,599) because `Generic` attacks block ciphers and
+  emit near-identical flow records by construction. Removing those duplicates was mandatory —
+  they caused 42.6% test-set contamination. Be ready to explain this in the viva; it is the
+  most likely "your numbers don't match the literature" challenge you will face.
 - **Accuracy is a misleading metric here.** Predicting `Normal` for everything gets ~33% accuracy while being completely useless. This is why the rubric mandates F1, and why you will additionally report **macro-F1**.
 - **The finding to expect:** `Analysis`, `Backdoor` and `Worms` will be almost entirely absorbed into `Exploits` and `DoS`. This is not your model failing — those UNSW-NB15 categories genuinely overlap in feature space (an "Analysis" flow is often a port scan that also looks like reconnaissance; a "Backdoor" flow looks like an exploit). **Quantify it from the confusion matrix and explain it.** This is the strongest single thing you can say in the Review 1 viva — do not hide it behind a good weighted-F1 number.
 
@@ -107,7 +128,7 @@ Structure it so Part B slots in at Review 2 without restructuring:
 
 ```python
 import sys; sys.path.append("..")
-from src.data_prep import get_dataset, make_mock_dataset
+from src.preprocessing import get_dataset
 from src.metrics_clf import evaluate, results_table, plot_confusion
 
 USE_MOCK = True   # ← flip to False at gate M2
@@ -153,7 +174,7 @@ All on the same `X_train`, all `random_state=42`. Loop over a `MODELS` dict.
 
 ---
 
-# 🚩 GATE M2 — Day 5 · A delivers `data_prep.py`
+# 🚩 GATE M2 — Day 5 · A delivers `src/preprocessing/`
 
 ### ☐ C-T7. The swap
 - [ ] `git pull`

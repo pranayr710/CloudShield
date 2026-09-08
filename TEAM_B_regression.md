@@ -12,7 +12,7 @@
 
 ## Your dependency summary
 
-| You are blocked by | **Person A** — you need `src/data_prep.py` (gate **M2**, target Day 5) before any real number. |
+| You are blocked by | **Nothing — `src/preprocessing/` is already delivered and verified (gate M2 met).** Skip the mock phase; set `USE_MOCK = False` from the start. |
 |---|---|
 | **What A must finish for you to start at all** | **A-T3** (contract + `make_mock_dataset`), target Day 1. After that you have 4 full days of productive parallel work on mock data. |
 | **What A must finish for you to produce real results** | **A-T8 → gate M2**. Until then, every number you produce is fake — **label those cells clearly so they don't end up in the submission.** |
@@ -35,16 +35,43 @@
 
 ### ☐ B-T2. Understand the target before you model it
 
-Write this into a Markdown cell at the top of your notebook — it is the intellectual core of your track.
+**`src/preprocessing/` is already delivered and `DATA_AUDIT.md` documents the target in detail.
+Read finding 4 and finding 5 there before you write a line of model code.** Summary:
 
-- `sloss` = source packets retransmitted or dropped. Continuous count, heavily right-skewed, floor at 0.
-- **The trap:** `sloss ≤ spkts` by definition, and `sbytes`/`sload` are near-proxies for `spkts`. Feed them all in and you get R² ≈ 0.99 that means *"packet loss correlates with packet count"* — true, useless, and an examiner will spot it.
-- **Your answer:** train every model **twice**.
-  - **Model A (naive):** all features. Report the inflated R², then name the tautology yourself.
-  - **Model B (honest):** `drop_leaky=True` — no `spkts`, `sbytes`, `sload`, `bytes_per_pkt_src`. Predict loss from timing, TTL, jitter, protocol and connection-history features. This is your **headline result**.
-- Report both. The contrast is what turns a routine regression track into something worth 9 marks.
+- `sloss` = source packets retransmitted or dropped. Right-skewed count, 28.3% zeros,
+  median 2, 99th percentile 53, max 5,319.
+- **Five columns are algebraically tied to it**, not three: `sbytes` (r=0.9967),
+  `spkts` (r=0.9738, and `sloss <= spkts` by definition), `smean` (`== sbytes/spkts` exactly),
+  `sload`, `rate`. `drop_leaky=True` removes all five plus two engineered descendants.
+- **Use `log_target=True` as your primary framing.** Ten test rows carry 62.7% of `sloss`'s
+  variance, so raw-scale R² saturates at ~0.998 for every tree model and your required
+  "ranked by R²" table would be ten identical numbers. On `log1p`, Linear scores 0.859 and
+  Random Forest 0.997 — a table that actually says something.
+- Report R²/RMSE in log space; convert MAE back with `np.expm1(pred)` so it reads in packets.
 
----
+**Your three deliverable framings:**
+
+| Run | Call | Purpose |
+|---|---|---|
+| 1 | `get_dataset("regression", log_target=True)` | headline: all features |
+| 2 | `get_dataset("regression", drop_leaky=True, log_target=True)` | headline: leakage removed |
+| 3 | `get_dataset("regression")` | secondary: raw scale, to show why log was needed |
+
+**The finding to lead with:** removing the leaky columns barely moves R² (0.9988 → 0.9966 on
+log1p). That is **not** a bug — a shuffled-target control scores R² = −0.097, proving the
+pipeline is clean. Argus derives all 40-odd flow statistics from one packet stream, so they are
+mutually constraining. Run the ablation in `DATA_AUDIT.md` finding 5 and present *that*:
+
+| Feature set | RF R² |
+|---|---|
+| everything | 0.9992 |
+| − 5 leaky columns | 0.9981 |
+| − also `sinpkt` | 0.9926 |
+| − also `dbytes`, `dpkts`, `dmean` | 0.9707 |
+| − also `dur`, `dinpkt`, `dload`, `iat_ratio` | 0.6999 |
+
+Only when duration is removed does the target get genuinely hard. Reproducing that table is
+worth more than any single R² you can quote.
 
 # PHASE 1 — Days 1–5 · Build everything on mock data ⚡ **this is why you're not blocked**
 
@@ -88,7 +115,7 @@ def results_table(rows):
 
 ```python
 import sys; sys.path.append("..")
-from src.data_prep import get_dataset, make_mock_dataset
+from src.preprocessing import get_dataset
 from src.metrics_reg import evaluate, results_table
 
 USE_MOCK = True   # ← flip to False at gate M2
@@ -140,7 +167,7 @@ gbm_grid = {"n_estimators": [100, 300], "learning_rate": [0.05, 0.1],
 
 ---
 
-# 🚩 GATE M2 — Day 5 · A delivers `data_prep.py`
+# 🚩 GATE M2 — Day 5 · A delivers `src/preprocessing/`
 
 ### ☐ B-T7. The swap
 - [ ] `git pull`
@@ -151,7 +178,7 @@ gbm_grid = {"n_estimators": [100, 300], "learning_rate": [0.05, 0.1],
   - [ ] `np.isnan(d["X_train"]).any()` is `False`
   - [ ] `len(d["feature_names"]) == d["X_train"].shape[1]`
   - [ ] `d_hon["X_train"].shape[1] < d["X_train"].shape[1]`
-  - [ ] `d["y_train"].min() >= 0` — `sloss` is a count, negatives mean a cleaning bug in `data_prep`
+  - [ ] `d["y_train"].min() >= 0` — `sloss` is a count, negatives mean a cleaning bug in `src.preprocessing`
 - [ ] If anything fails, **message A immediately** — don't patch it yourself in your notebook.
 
 ---

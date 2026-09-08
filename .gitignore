@@ -1,0 +1,27 @@
+# Python / Environment
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+env/
+
+# Data & Datasets (Do NOT commit large data files)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/*
+!data/**/.gitkeep
+dataset/
+*.csv
+*.tsv
+*.parquet
+*.zip
+*.gz
+
+# Models
+models/*
+!models/.gitkeep
+!models/best_*.pkl
+*.pkl
+
