@@ -1,0 +1,6 @@
+Rank,Model,Accuracy,Precision,Recall,Weighted F1,Macro F1,ROC-AUC,FitTime_s,PredictTime_s,n_train,Note
+1,Decision Tree (depth=None),0.7809,0.8039,0.7809,0.7912,0.556,0.8568,3.61,0.01,130196,"class_weight=balanced, depth by CV"
+2,KNN (k=5),0.7486,0.7501,0.7486,0.7477,0.4522,0.9145,0.02,2.722,130196,k chosen by CV on train
+3,Logistic Regression,0.6587,0.8134,0.6587,0.7096,0.438,0.9419,39.85,0.011,130196,class_weight=balanced
+4,SVM (RBF),0.6619,0.8181,0.6619,0.7092,0.4424,0.9026,13.04,24.141,20000,"trained on 20,000-row stratified subsample"
+5,Gaussian Naive Bayes,0.3718,0.7673,0.3718,0.4553,0.234,0.8075,0.11,0.192,130196,conditional independence violated
