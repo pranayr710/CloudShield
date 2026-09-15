@@ -60,15 +60,15 @@ CloudShield/
 ├── README.md
 ├── PROJECT_REPORT.md                full methodology, results and discussion
 ├── requirements.txt
-├── .gitignore  /  .gitattributes    (large CSVs tracked via Git LFS)
+├── .gitignore  /  .gitattributes
 │
 ├── data/
 │   ├── download_unsw_nb15.py        fetch + verify the partition files
 │   ├── download_cse_cic_ids2018.py
 │   ├── download_ton_iot.py
-│   └── raw/                         UNSW-NB15 CSVs (LFS)
+│   └── raw/                         UNSW-NB15 CSVs  (not committed)
 │
-├── processed_data/                  train/val/test splits, both tracks (LFS)
+├── processed_data/                  train/val/test splits  (not committed)
 │   ├── train_processed.csv          classification
 │   ├── val_processed.csv
 │   ├── test_processed.csv
@@ -115,18 +115,13 @@ CloudShield/
 
 ## Setup
 
-This repository uses **Git LFS** for the dataset CSVs. Install it before
-cloning, or the data files will arrive as small pointer stubs:
-
-```bash
-git lfs install
-```
+**No dataset files are committed.** The raw captures and the derived splits are
+regenerated locally — see step 1 below. Only code, notebooks, result tables and
+figures live in the repository.
 
 ```bash
 git clone https://github.com/pranayr710/CloudShield.git
 ```
-
-Then create the environment:
 
 ```bash
 python -m venv .venv
@@ -138,22 +133,30 @@ Activate — `.venv\Scripts\activate` (PowerShell) or `source .venv/Scripts/acti
 pip install -r requirements.txt
 ```
 
-If the raw data is missing, fetch and verify it:
+## How to run
+
+**1 — Fetch the raw dataset.** The script verifies the two partition files
+against their actual shapes and prints acquisition instructions if they are
+absent:
 
 ```bash
 python data/download_unsw_nb15.py
 ```
 
-## How to run
+**2 — Build the processed splits.** Run both preprocessing notebooks; they write
+into `processed_data/`, which the modelling notebooks read:
 
-Open the notebooks in order:
+- `preprocessing_regression_corrected_executed.ipynb`
+- `preprocessing_classification_corrected_executed.ipynb`
+
+**3 — Run the analysis notebooks** in order:
 
 1. `notebooks/01_eda.ipynb` — dataset audit and exploratory analysis
-2. `preprocessing_regression_corrected_executed.ipynb` and
-   `preprocessing_classification_corrected_executed.ipynb` — build the
-   processed splits into `processed_data/`
-3. `notebooks/02_regression_modeling.ipynb` — Track 1
-4. `notebooks/03_classification.ipynb` — Track 2
+2. `notebooks/02_regression_modeling.ipynb` — Track 1
+3. `notebooks/03_classification.ipynb` — Track 2
+
+Steps 1 and 2 must complete before the modelling notebooks will run — they fail
+with a missing-file error otherwise, since `processed_data/` ships empty.
 
 The modelling notebooks read from `processed_data/` and re-anchor their relative
 paths to the project root, so they run correctly from inside `notebooks/`.

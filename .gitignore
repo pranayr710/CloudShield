@@ -44,3 +44,11 @@ desktop.ini
 # local working copies, not part of the repository
 ML/
 ml_own/
+
+# --- Datasets ---------------------------------------------------------------
+# Raw captures and derived splits are NOT committed. data/download_*.py fetches
+# the raw CSVs; the preprocessing notebooks regenerate processed_data/.
+data/raw/*.csv
+processed_data/*.csv
+!data/raw/.gitkeep
+!processed_data/.gitkeep
