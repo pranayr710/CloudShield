@@ -40,3 +40,7 @@ desktop.ini
 # --- Archives ---------------------------------------------------------------
 *.rar
 *.zip
+
+# local working copies, not part of the repository
+ML/
+ml_own/

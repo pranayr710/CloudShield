@@ -1,59 +1,55 @@
 # CloudShield
 
-**Multi-Dataset ML-Driven Cloud Threat Detection and Resource Abuse Prediction**
+**Network Traffic Threat Detection & QoS Degradation Forecasting**
 
 23CSE301 Machine Learning Capstone · Academic Year 2026–27
 
-CloudShield analyses cloud and network security from three complementary angles,
-using a different dataset and a different learning paradigm for each. It does not
-depend on a single algorithm or a single capture.
+An end-to-end machine learning system over UNSW-NB15 network flow records that
+forecasts service-quality degradation, classifies intrusions into attack
+families, and profiles traffic behaviour without labels.
 
 ---
 
-## Architecture
+## The three tracks
 
-```
- CSE-CIC-IDS2018            UNSW-NB15                  TON_IoT
-        │                       │                         │
-        ▼                       ▼                         ▼
-   Regression             Classification              Clustering
-        │                       │                         │
-        ▼                       ▼                         ▼
- Resource-abuse          Attack category           Behaviour
-   prediction              prediction               clusters
-        │                       │                         │
-        └───────────────────────┼─────────────────────────┘
-                                ▼
-                    CloudShield Decision Layer
-                                ▼
-                        Security Dashboard
-```
-
-| Track | Dataset | Task | Target | Question answered |
+| Track | Type | Target | Notebook | Status |
 |---|---|---|---|---|
-| 1 | CSE-CIC-IDS2018 | Regression | network byte rate | How much resource is this workload consuming? |
-| 2 | UNSW-NB15 | Classification | `attack_cat`, 10 classes | If traffic is malicious, what kind of attack is it? |
-| 3 | TON_IoT | Clustering | none (labels withheld) | What hidden behaviour patterns exist? |
+| 1 — QoS degradation forecasting | Regression | `log1p(dbytes)` | `notebooks/02_regression_modeling.ipynb` | executed |
+| 2 — Attack classification | Classification | `attack_cat`, 10 classes | `notebooks/03_classification.ipynb` | executed |
+| 3 — Behaviour profiling | Clustering | none (labels withheld) | pending | Review 2 |
 
-Three datasets rather than one, because no single public capture supports all
-three questions well. UNSW-NB15 carries a rich multiclass attack taxonomy;
-CSE-CIC-IDS2018 was deployed on AWS and carries the flow-rate features that make
-resource forecasting meaningful; TON_IoT contributes heterogeneous IoT/IIoT
-telemetry suited to unsupervised behaviour discovery.
+Full methodology, results and discussion are in
+[`PROJECT_REPORT.md`](PROJECT_REPORT.md).
 
 ---
 
-## Current status
+## Dataset
 
-| Track | Dataset present | Work complete | Results |
-|---|---|---|---|
-| 2 — Classification | ✅ yes | Member 1: classifiers 1–5 | **executed, in `results/classification/`** |
-| 1 — Regression | ❌ not downloaded | Member 1: pipeline + notebook built | **none — pending download** |
-| 3 — Clustering | ❌ not downloaded | Member 3 | not started |
+**UNSW-NB15**, generated with the IXIA PerfectStorm tool at the Australian
+Centre for Cyber Security. Flow features are extracted with Argus and Bro/Zeek
+plus twelve custom algorithms.
 
-`notebooks/01_cse_ids2018_regression.ipynb` runs top to bottom without the
-dataset present and reports `pending data` in every modelling cell rather than
-producing numbers it did not compute.
+- Two partition files, 45 columns, 257,673 rows combined
+- **10 classes**: `Normal` plus nine attack families — Fuzzers, Analysis,
+  Backdoor, DoS, Exploits, Generic, Reconnaissance, Shellcode, Worms
+
+> Moustafa, N. and Slay, J. (2015). *UNSW-NB15: a comprehensive data set for
+> network intrusion detection systems.* MilCIS. Free for academic use.
+
+### Two dataset properties that change the results
+
+Both are measured, with the full audit in
+[`docs/dataset_documentation/unsw_nb15_audit.md`](docs/dataset_documentation/unsw_nb15_audit.md).
+
+1. **The partition filenames are swapped.** `UNSW_NB15_training-set.csv` holds
+   82,332 rows and `UNSW_NB15_testing-set.csv` holds 175,341 — the reverse of
+   the split described in the paper. Taking the names at face value means
+   training on the smaller file and testing on the larger one.
+2. **36.8% of rows are exact duplicates.** With a random split, that places
+   byte-identical copies of the same flow on both sides. Removing them before
+   splitting also shifts the class prior substantially — `Generic` drops by
+   87% — so deduplicated class counts differ from those usually quoted in the
+   literature.
 
 ---
 
@@ -62,39 +58,75 @@ producing numbers it did not compute.
 ```
 CloudShield/
 ├── README.md
+├── PROJECT_REPORT.md                full methodology, results and discussion
 ├── requirements.txt
-├── .gitignore
+├── .gitignore  /  .gitattributes    (large CSVs tracked via Git LFS)
+│
 ├── data/
-│   ├── download_cse_cic_ids2018.py     fetch + inspect Track 1 data
-│   ├── download_unsw_nb15.py           fetch + verify Track 2 data
-│   ├── download_ton_iot.py             fetch Track 3 data
-│   ├── raw/{CSE-CIC-IDS2018,UNSW-NB15,TON_IoT}/      (gitignored)
-│   └── processed/                                     (gitignored)
+│   ├── download_unsw_nb15.py        fetch + verify the partition files
+│   ├── download_cse_cic_ids2018.py
+│   ├── download_ton_iot.py
+│   └── raw/                         UNSW-NB15 CSVs (LFS)
+│
+├── processed_data/                  train/val/test splits, both tracks (LFS)
+│   ├── train_processed.csv          classification
+│   ├── val_processed.csv
+│   ├── test_processed.csv
+│   └── reg_{train,val,test}_processed.csv    regression
+│
 ├── notebooks/
-│   ├── 01_cse_ids2018_regression.ipynb      Track 1 — Member 1 (models 1–3)
-│   ├── 02_unsw_nb15_classification.ipynb    Track 2 — Member 1 (models 1–5)
-│   ├── 03_ton_iot_clustering.ipynb          Track 3 — Member 3
-│   └── 04_cloudshield_integration.ipynb     final integration
+│   ├── 01_eda.ipynb                 dataset audit and EDA
+│   ├── 02_regression_modeling.ipynb Track 1 — 10 regressors
+│   └── 03_classification.ipynb      Track 2 — 5 classifiers (Part A)
+│
+├── preprocessing_regression_corrected_executed.ipynb
+├── preprocessing_classification_corrected_executed.ipynb
+│
 ├── src/
 │   ├── preprocessing/
-│   │   ├── cse_cic_ids2018.py    Track 1 pipeline (schema-inspecting)
-│   │   └── unsw_nb15.py          Track 2 pipeline
-│   ├── regression/ classification/ clustering/
-│   └── utils/
-│       ├── config.py     every shared constant, in one place
-│       ├── metrics.py    the three results formats
-│       └── plotting.py   shared figure style
-├── models/{regression,classification,clustering}/
-├── results/{regression,classification,clustering,figures}/
-├── app/                  Streamlit dashboard
-└── docs/
-    ├── dataset_documentation/unsw_nb15_audit.md
-    └── project_report/ architecture/ screenshots/
+│   │   ├── config.py                shared constants and column lists
+│   │   ├── cleaning.py              missing values, duplicates, outliers
+│   │   ├── features.py              engineered features
+│   │   ├── split_scale.py           stratified split, encoding, scaling
+│   │   └── pipeline.py              orchestration
+│   └── plotting.py                  shared figure style
+│
+├── reports/
+│   ├── regression_results.csv       10-model comparison
+│   ├── regression_tuning.csv        GridSearchCV before/after
+│   ├── classification_results.csv   5-model comparison
+│   ├── classification_cv.csv        5-fold CV on the top two
+│   ├── classification_per_class.csv per-class precision/recall/F1
+│   └── figures/                     19 exported plots
+│
+├── results/
+│   ├── classification/              additional classification result tables
+│   └── figures/classification/      class distribution, confusion matrices,
+│                                    decision tree, per-class recall
+│
+├── models/                          saved best estimators (.joblib)
+├── docs/
+│   ├── 23CSE301_ML_26_27_Capstone_Guidelines.pdf
+│   └── dataset_documentation/unsw_nb15_audit.md
+└── app/                             dashboard (Review 2 bonus)
 ```
 
 ---
 
 ## Setup
+
+This repository uses **Git LFS** for the dataset CSVs. Install it before
+cloning, or the data files will arrive as small pointer stubs:
+
+```bash
+git lfs install
+```
+
+```bash
+git clone https://github.com/pranayr710/CloudShield.git
+```
+
+Then create the environment:
 
 ```bash
 python -m venv .venv
@@ -106,118 +138,81 @@ Activate — `.venv\Scripts\activate` (PowerShell) or `source .venv/Scripts/acti
 pip install -r requirements.txt
 ```
 
-Fetch the datasets. Each script verifies what it finds and prints instructions
-if the data is missing:
+If the raw data is missing, fetch and verify it:
 
 ```bash
 python data/download_unsw_nb15.py
 ```
 
-```bash
-python data/download_cse_cic_ids2018.py --aws
-```
+## How to run
 
-```bash
-python data/download_ton_iot.py
-```
+Open the notebooks in order:
 
-Then run the notebooks in order: `01` → `02` → `03` → `04`.
+1. `notebooks/01_eda.ipynb` — dataset audit and exploratory analysis
+2. `preprocessing_regression_corrected_executed.ipynb` and
+   `preprocessing_classification_corrected_executed.ipynb` — build the
+   processed splits into `processed_data/`
+3. `notebooks/02_regression_modeling.ipynb` — Track 1
+4. `notebooks/03_classification.ipynb` — Track 2
+
+The modelling notebooks read from `processed_data/` and re-anchor their relative
+paths to the project root, so they run correctly from inside `notebooks/`.
 
 ---
 
-## Shared conventions
+## Conventions
 
-These are what keep three members and three datasets from becoming three
-unrelated projects.
-
-**Reproducibility.** `random_state = 42` everywhere. Test size 0.20. Five-fold
-cross-validation.
-
-**One pipeline per dataset, shared by every model.** Members import
-`get_classification_data()` or `get_regression_data()` rather than writing their
-own preprocessing. If each member built their own, the consolidated comparison
-tables would be comparing models trained on different data.
-
-**One results format per track**, from `src/utils/metrics.py`:
-
-| Track | Columns |
+| | |
 |---|---|
-| Regression | `Model · R² · RMSE · MAE` |
-| Classification | `Model · Accuracy · Precision · Recall · Weighted F1 · ROC-AUC` |
-| Clustering | `Method · K · Silhouette · Davies-Bouldin · Calinski-Harabasz` |
+| Reproducibility | `random_state = 42` everywhere |
+| Split | stratified, fixed, shared across all models within a track |
+| Scaling | `StandardScaler` fitted on the training split only |
+| Regression format | `Model · R² · RMSE · MAE` |
+| Classification format | `Model · Accuracy · Precision · Recall · Weighted F1 · ROC-AUC` |
+| Clustering format | `Method · K · Silhouette · Davies-Bouldin · Calinski-Harabasz` |
 
-Macro F1 is reported alongside weighted F1 on the classification track, because
-at a 500:1 class imbalance the weighted score is dominated by the majority class
-and hides rare-class failure entirely.
+Macro F1 is reported alongside weighted F1 for classification. At a ~500:1 class
+imbalance the weighted score is dominated by `Normal` and conceals near-total
+failure on the rare attack families, so the two are always shown together.
 
-**Leakage prevention.** The target never enters `X`. Scalers, encoders, clip
-bounds and rare-level whitelists are fitted on the training split only. Both
-pipelines assert this, and the notebooks prove it numerically: the scaled
-training block is centred to machine precision while the test block is not — an
-asymmetry that can only exist if the transform never saw the held-out rows.
-
-**Sequencing.** Baselines for all ten models complete before any tuning begins.
-
-**No assumed schema.** The Track 1 pipeline resolves its target column against a
-list of known aliases and raises `TargetColumnNotFound` if none matches, rather
-than substituting a different column. The spec names the target `fl_byt_s`,
-which is the abbreviated form used by some CIC-IDS2017 redistributions;
-CSE-CIC-IDS2018 normally uses `Flow Byts/s`. The pipeline determines which is
-actually present.
-
----
-
-## Team ownership
-
-| | Regression (Track 1) | Classification (Track 2) | Clustering (Track 3) |
-|---|---|---|---|
-| **Member 1** | Linear, Ridge, Lasso | Logistic Regression, KNN, Naive Bayes, Decision Tree, SVM | — |
-| **Member 2** | ElasticNet, Polynomial, Decision Tree | Random Forest, AdaBoost, Gradient Boosting, Bagging, MLP | — |
-| **Member 3** | Random Forest, Gradient Boosting, SVR, KNN | — | K-Means, Agglomerative, + final integration |
-
-Members do not implement one another's models. Appending to a shared table is
-documented at the end of each notebook.
-
----
-
-## Datasets
-
-**CSE-CIC-IDS2018** — Canadian Institute for Cybersecurity, captured on AWS
-(~16M flows, 80 CICFlowMeter features, 7 attack families).
-Sharafaldin, I., Habibi Lashkari, A. and Ghorbani, A. (2018). *Toward Generating
-a New Intrusion Detection Dataset and Intrusion Traffic Characterization.*
-ICISSP.
-
-**UNSW-NB15** — Australian Centre for Cyber Security, IXIA PerfectStorm testbed
-(257,673 flows across both partition files, 45 features, 10 classes).
-Moustafa, N. and Slay, J. (2015). *UNSW-NB15: a comprehensive data set for
-network intrusion detection systems.* MilCIS.
-
-> Two properties of UNSW-NB15 materially affect Track 2 and are documented in
-> [`docs/dataset_documentation/unsw_nb15_audit.md`](docs/dataset_documentation/unsw_nb15_audit.md):
-> the two partition files ship with their **names swapped** relative to the
-> published split, and **36.8% of rows are exact duplicates** which would
-> otherwise contaminate the test set. Removing the duplicates changes the class
-> distribution substantially, so our class counts differ from those usually
-> quoted in the literature — by design.
-
-**TON_IoT** — UNSW Canberra, IoT/IIoT telemetry plus host and network logs.
-Moustafa, N. (2021). *A new distributed architecture for evaluating AI-based
-security systems at the edge: Network TON_IoT datasets.* Sustainable Cities and
-Society, 72, 102994.
-
-All three are free for academic use. None is committed to this repository; the
-download scripts fetch them.
+**Sequencing.** All baselines are completed before any hyperparameter tuning, so
+the tuning comparison has an honest reference point.
 
 ---
 
 ## Results
 
-Populated as each track completes. Nothing is listed here that has not been
-computed.
+Full tables and discussion in [`PROJECT_REPORT.md`](PROJECT_REPORT.md); raw CSVs
+in `reports/`.
 
-| Track | Best model | Metric | Status |
-|---|---|---|---|
-| Classification | see `results/classification/member1_results.csv` | Weighted F1 / Macro F1 | Member 1 baselines complete |
-| Regression | — | R² / RMSE / MAE | pending dataset download |
-| Clustering | — | Silhouette / DB / CH | not started |
+### Track 2 — Classification (Part A, five algorithms)
+
+| Rank | Algorithm | Acc (val) | Acc (test) | F1 weighted (test) | F1 macro (test) |
+|---|---|---|---|---|---|
+| 1 | K-Nearest Neighbors | 0.8749 | **0.8197** | **0.8189** | 0.5063 |
+| 2 | Decision Tree | 0.8729 | 0.8087 | 0.8186 | **0.5771** |
+| 3 | Logistic Regression | 0.8488 | 0.7825 | 0.7957 | 0.4789 |
+| 4 | SVC (RBF) | 0.8460 | 0.7784 | 0.7923 | 0.4589 |
+| 5 | Gaussian Naive Bayes | 0.7486 | 0.6446 | 0.6747 | 0.3114 |
+
+Majority-class baseline (always predict `Normal`): accuracy 0.319, weighted F1
+0.155. Every model beats it by a wide margin.
+
+Two observations worth carrying into the viva:
+
+- **KNN and the Decision Tree are effectively tied on weighted F1** (0.8189 vs
+  0.8186), but the tree wins clearly on macro F1 (0.577 vs 0.506) — it handles
+  the rare classes better, which is what matters for a detection system.
+- **Gaussian Naive Bayes fails as predicted.** Its conditional-independence
+  assumption is badly violated: UNSW-NB15 flow statistics are all derived from
+  the same packet stream and are heavily correlated. Including it demonstrates
+  the point rather than wasting a slot.
+
+### Track 1 — Regression
+
+Ten algorithms compared on `log1p(dbytes)`. See `reports/regression_results.csv`
+and `reports/regression_tuning.csv`.
+
+### Track 3 — Clustering
+
+Review 2.
