@@ -32,3 +32,6 @@ models/*
 # IDE
 .vscode/
 .idea/
+
+# Local-only notebooks
+notebooks/02_regression_modeling.ipynb
