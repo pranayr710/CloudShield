@@ -12,9 +12,9 @@ Every connection on a network leaves a flow record: duration, packets and bytes 
 
 | Track | Question | Method | Dataset | Notebook |
 |---|---|---|---|---|
-| Classification (Part A + Part B) | Which of ten traffic types is this flow: normal, or one of nine attacks? | 10 supervised classifiers | TON_IoT (network) | [`notebooks/classification.ipynb`](notebooks/classification.ipynb) |
+| Classification (Part A + Part B) | Which of ten traffic types is this flow: normal, or one of nine attacks? | 10 supervised classifiers (12 configs evaluated) | TON_IoT (network) | [`notebooks/03_classification_1.ipynb`](notebooks/03_classification_1.ipynb) |
 | Clustering | Without labels, what natural groups of behaviour exist? | K-Means, Agglomerative | TON_IoT (network) | [`notebooks/clustering.ipynb`](notebooks/clustering.ipynb) |
-| Regression | How many bytes will the reply side of a flow carry? | 10 regressors | UNSW-NB15 | 10 regressors evaluated |
+| Regression | How many bytes will the reply side of a flow carry? | 10 regressors | UNSW-NB15 | [`notebooks/02_regression_modeling.ipynb`](notebooks/02_regression_modeling.ipynb) |
 
 ---
 
@@ -26,7 +26,7 @@ Every connection on a network leaves a flow record: duration, packets and bytes 
 
 - 20,569 exact duplicate rows (9.7%) are removed first, leaving 190,474 flows.
 - `mitm` is rare: 1,041 flows, 0.55% of the data.
-- Every attack type comes from only 2 to 6 source machines, so machine identifiers (`src_ip`, `dst_ip`, `src_port`) are dropped before modelling.
+- Every attack type comes from only 2 to 6 source machines, so the classification test set is split by source machine (`src_ip`): no machine appears in both training and test.
 - `label` is 0 exactly when `type` is `normal`, so it is dropped as a target leak.
 
 > Moustafa, N. (2021). A new distributed architecture for evaluating AI-based security systems at the edge: Network TON_IoT datasets. *Sustainable Cities and Society*, 72, 102994.
@@ -42,34 +42,46 @@ Two partition files, 45 columns, 257,673 flows. The regression target is `dbytes
 
 ## Results
 
-### Classification: all ten algorithms (TON_IoT, test set of 38,095 flows)
+### Classification: all algorithms & tuned configurations (TON_IoT)
 
-One stratified 80:20 split (`random_state=42`) shared by every model; every model's hyperparameters chosen by 3-fold cross-validation on training data only. SVC was trained on a 20,000-row stratified sample because RBF kernels scale quadratically.
+Evaluated using `StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)` grouped by `src_ip`. All flows from a given host machine belong exclusively to either train or test, enforcing zero machine-identifier leakage and evaluating true cross-machine attack generalization on unseen systems.
 
-| Rank | Model | Part | Accuracy | Precision (w) | Recall (w) | F1 (w) | F1 (macro) | ROC-AUC (OvR) | Tuned settings |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | **Gradient Boosting** | B | **0.9881** | **0.9882** | **0.9881** | **0.9881** | **0.9663** | **0.9997** | learning_rate 0.05, max_iter 200 |
-| 2 | Bagging | B | 0.9870 | 0.9872 | 0.9870 | 0.9871 | 0.9657 | 0.9996 | 100 trees, max_features 0.5 |
-| 3 | K-Nearest Neighbors | A | 0.9864 | 0.9865 | 0.9864 | 0.9865 | 0.9637 | 0.9935 | k=5, Manhattan, distance-weighted |
-| 4 | Random Forest | B | 0.9864 | 0.9865 | 0.9864 | 0.9864 | 0.9645 | 0.9979 | 100 trees, max_features 0.3 |
-| 5 | Decision Tree | A | 0.9854 | 0.9865 | 0.9854 | 0.9858 | 0.9566 | 0.9891 | max_depth 25 |
-| 6 | MLP | B | 0.9817 | 0.9822 | 0.9817 | 0.9818 | 0.9537 | 0.9995 | (128, 64), tanh |
-| 7 | SVC | A | 0.9767 | 0.9772 | 0.9767 | 0.9768 | 0.9426 | 0.9970 | RBF, C=50, gamma=0.05 |
-| 8 | Logistic Regression | A | 0.9536 | 0.9674 | 0.9536 | 0.9590 | 0.8996 | 0.9960 | C=10, balanced |
-| 9 | AdaBoost | B | 0.9093 | 0.9162 | 0.9093 | 0.9092 | 0.8583 | 0.9650 | 300 rounds, learning_rate 0.5 |
-| 10 | Gaussian Naive Bayes | A | 0.4455 | 0.5749 | 0.4455 | 0.4361 | 0.4245 | 0.9467 | none |
+| Rank | Model | Part | Accuracy (test) | F1 (weighted) | F1 (macro) | Notes / Tuned Settings |
+|---|---|---|---|---|---|---|
+| 1 | **GBC (tuned)** | B | **0.8365** | **0.8742** | **0.5345** | `learning_rate=0.05, max_depth=5, n_estimators=100, subsample=0.8` |
+| 2 | Gradient Boosting (base) | B | 0.7578 | 0.7530 | 0.5207 | `n_estimators=100, learning_rate=0.1, max_depth=3` |
+| 3 | Bagging (tuned) | B | 0.7232 | 0.7302 | 0.4882 | `n_estimators=200, max_samples=0.7, max_features=0.2, DT max_depth=30` |
+| 4 | Bagging (base) | B | 0.7267 | 0.6921 | 0.4620 | `n_estimators=100, max_features=0.3, DT base` |
+| 5 | SVC (RBF) | A | 0.6781 | 0.6399 | 0.4754 | `kernel='rbf', C=1.0, class_weight='balanced'` |
+| 6 | Random Forest | B | 0.6668 | 0.6059 | 0.4065 | `n_estimators=100, random_state=42` |
+| 7 | Neural Network (MLP) | B | 0.6603 | 0.6213 | 0.4055 | `hidden_layer_sizes=(100, 50), relu, adam, max_iter=300` |
+| 8 | Logistic Regression | A | 0.6443 | 0.6135 | 0.3967 | `C=1.0, class_weight='balanced', max_iter=3000` |
+| 9 | AdaBoost | B | 0.6411 | 0.6650 | 0.4520 | `n_estimators=100, learning_rate=1.0, depth-3 tree base` |
+| 10 | Decision Tree | A | 0.6298 | 0.6239 | 0.4103 | `class_weight='balanced', max_depth=None` |
+| 11 | K-Nearest Neighbors | A | 0.5993 | 0.6197 | 0.4061 | `k=5, weights='distance'` |
+| 12 | Gaussian Naive Bayes | A | 0.2964 | 0.3959 | 0.2453 | independence assumption violated |
 
-**5-fold cross-validation (weighted F1), top two:** Gradient Boosting 0.9872 ± 0.0006, Bagging 0.9867 ± 0.0008.
+**Hyperparameter tuning (RandomizedSearchCV on 35% training subsample):**
+- **Gradient Boosting:** baseline test F1w 0.7530 → tuned test F1w **0.8742** (best CV F1w = 0.9888).
+- **Bagging:** baseline test F1w 0.6921 → tuned test F1w **0.7302** (best CV F1w = 0.9846).
 
-**Final model: Gradient Boosting.**
+**Winning model: Tuned Gradient Boosting (`GBC (tuned)`).** On the 67,001 test flows from 6 unseen machines:
+accuracy 0.8365, weighted precision 0.9404, weighted recall 0.8365, weighted F1 0.8742, macro F1 0.5345, ROC-AUC (one-vs-rest over the classes in the test fold) 0.9969.
 
-| Gradient Boosting | Weighted F1 | Macro F1 |
-|---|---|---|
-| Library default settings | 0.9846 | 0.9496 |
-| Tuned by cross-validation | 0.9881 | 0.9663 |
-| Wider GridSearchCV on the full training set | 0.9881 | 0.9650 |
+The test fold holds 6 of the 10 classes; `backdoor`, `xss`, `ransomware`, `mitm` have no flows in it because all their source machines fall in the training split.
 
-**Stress test, unseen machines:** retrained on flows from some source machines and tested on machines it never saw (grouped by `src_ip`), the same configuration scores accuracy 0.7361, weighted F1 0.6984. Only 8 of the 10 classes occur in that fold.
+Per-class test performance of the tuned Gradient Boosting model:
+
+| Class | Precision | Recall | F1-Score |
+|---|---|---|---|
+| `scanning` | 0.9806 | 0.9584 | 0.9694 |
+| `normal` | 0.8718 | 0.9826 | 0.9239 |
+| `injection` | 0.8941 | 0.9289 | 0.9112 |
+| `password` | 0.8052 | 0.9857 | 0.8864 |
+| `DoS` | 0.9994 | 0.7915 | 0.8834 |
+| `DDoS` | 0.9841 | 0.6340 | 0.7711 |
+
+Persisted table: [`results/classification_12model_ton_iot.csv`](results/classification_12model_ton_iot.csv). The per-class table above is computed from the tuned Gradient Boosting model itself (`app/build_models.py` rebuilds it on the same split).
 
 ### Clustering (TON_IoT, labels withheld)
 
@@ -106,6 +118,26 @@ All result tables are CSV files in `results/` (TON_IoT) and `reports/` (UNSW-NB1
 
 ---
 
+## Live models (deployment)
+
+The three final models are served behind input forms:
+
+| App | File | Where |
+|---|---|---|
+| Streamlit (main) | `app/streamlit_app.py` | Streamlit Community Cloud, main file `app/streamlit_app.py` |
+| Gradio | `app/app.py` | Hugging Face Space `pranayraparla/Ml_Capstone` (API endpoints `/classify`, `/cluster`, `/regress`) |
+
+Both apps load the same bundles from `app/models/`: Gradient Boosting (tuned) for TON_IoT classification, K-Means (k = 6) for TON_IoT clustering and the Random Forest for UNSW-NB15 regression. `app/build_models.py` rebuilds the bundles from the notebooks' pipelines and checks their test scores against the notebooks (classification 0.8365 / 0.8742 / 0.5345, regression R² 0.9994).
+
+The Streamlit app also has pages for the overview, classification, clustering and regression results, and a page to download every results table. The website's **Live models** page embeds it.
+
+```bash
+pip install -r app/requirements.txt
+streamlit run app/streamlit_app.py      # http://localhost:8501
+```
+
+---
+
 ## Repository layout
 
 ```
@@ -119,16 +151,16 @@ CloudShield/
 │   ├── download_cse_cic_ids2018.py
 │   └── raw/                             datasets (not committed)
 ├── notebooks/
-│   ├── classification.ipynb             Classification Part A + B, TON_IoT
-│   ├── clustering.ipynb                 Clustering, TON_IoT
 │   ├── 01_eda.ipynb                     EDA, UNSW-NB15
-│   ├── 03_classification.ipynb          Review 1 Part A on UNSW-NB15 (superseded)
-│   └── 03_classification_1.ipynb        early Part B exploration on TON_IoT (superseded)
+│   ├── 02_regression_modeling.ipynb     Regression (10 models), UNSW-NB15
+│   ├── 03_classification_1.ipynb        Classification Part A + B (12 configs), TON_IoT
+│   └── clustering.ipynb                 Clustering, TON_IoT
 ├── preprocessing/                       UNSW-NB15 preprocessing notebooks
 ├── src/preprocessing/                   UNSW-NB15 preprocessing package
 ├── reports/                             UNSW-NB15 result tables and figures
 ├── results/                             TON_IoT result tables, figures, final model
 ├── models/                              saved UNSW-NB15 models
+├── app/                                 deployed models: Streamlit and Gradio apps, model bundles
 ├── cloudshield-site/                    presentation website (React + Vite)
 └── docs/                                guidelines and dataset audit
 ```
@@ -154,7 +186,8 @@ Datasets are not committed.
 
 | Notebook | Needs | Runtime (4-core CPU) |
 |---|---|---|
-| `notebooks/classification.ipynb` | TON_IoT CSV | about 50 minutes, half of it hyperparameter search |
+| `notebooks/03_classification_1.ipynb` | TON_IoT CSV | about 20–30 minutes, includes RandomizedSearch tuning |
+| `notebooks/02_regression_modeling.ipynb` | `processed_data/` | about 5 minutes, includes GridSearchCV |
 | `notebooks/clustering.ipynb` | TON_IoT CSV | about 2 minutes |
 
 Open a notebook and run all cells top to bottom. The TON_IoT notebooks look for the CSV in `data/raw/TON_IoT/` locally, or in any dataset attached under `/kaggle/input/` when run on Kaggle, and write their tables, figures and final model to `results/` (or `/kaggle/working` on Kaggle).
@@ -177,9 +210,9 @@ The site reads `src/data/toniot.json` and `src/data/cloudshield.json`. To refres
 | | |
 |---|---|
 | Reproducibility | `random_state = 42` everywhere |
-| Split | one stratified 80:20 split per track, shared by every model |
+| Split | classification: StratifiedGroupKFold grouped by source machine (first fold as test); regression: the official UNSW-NB15 test file; one split per track shared by every model |
 | Leakage | encoders, scalers and port buckets fitted on the training split only; duplicates removed before splitting |
-| Tuning | 3-fold CV on training data; the test set is only used to report results |
+| Tuning | cross-validation on training data (RandomizedSearchCV / GridSearchCV); the test set only reports results |
 | Classification metrics | Accuracy, Precision, Recall, weighted F1, macro F1, ROC-AUC (one-vs-rest), confusion matrix |
 | Clustering metrics | Silhouette, Davies-Bouldin, Calinski-Harabasz |
 | Regression metrics | R², RMSE, MAE (log scale and bytes) |
