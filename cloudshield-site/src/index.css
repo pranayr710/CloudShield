@@ -1,0 +1,217 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* CloudShield design system.
+   One deliberate dark look: a security operations floor at night.
+   Near-black blue, cool white, signal cyan for the network, alert red for attacks.
+   Display: Unbounded. Body: Inter. Editorial voice: Instrument Serif italic. Data: JetBrains Mono. */
+
+@theme inline {
+  --ease-out-back: var(--ease-back);
+  --ease-out-expo: var(--ease-expo);
+  --font-serif: var(--font-serif-stack);
+  --font-display: var(--font-display-stack);
+  --font-sans: var(--font-primary-stack);
+  --font-mono: var(--font-mono-stack);
+  --color-carbon: var(--c-bg);
+  --color-panel: var(--c-panel);
+  --color-panel-2: var(--c-panel-2);
+  --color-cyan: var(--c-cyan);
+  --color-red: var(--c-red);
+  --color-amber: var(--c-amber);
+  --color-ink: var(--c-ink);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-ink-dim: var(--c-ink-dim);
+  --color-hairline: var(--c-line);
+  --color-hairline-strong: var(--c-line-strong);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  color-scheme: dark;
+  --c-bg: #05080c;
+  --c-panel: #0a1017;
+  --c-panel-2: #111a24;
+  --c-cyan: #36e2d4;
+  --c-red: #ff3b5c;
+  --c-amber: #ffb547;
+  --c-ink: #eaf2f5;
+  --c-ink-muted: rgba(234, 242, 245, 0.7);
+  --c-ink-dim: rgba(234, 242, 245, 0.45);
+  --c-line: rgba(160, 220, 255, 0.07);
+  --c-line-strong: rgba(160, 220, 255, 0.14);
+  --font-primary-stack: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-display-stack: "Unbounded", "Arial Black", Impact, sans-serif;
+  --font-serif-stack: "Instrument Serif", Georgia, serif;
+  --font-mono-stack: "JetBrains Mono", "Consolas", monospace;
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* shadcn variables mapped onto the same palette */
+  --radius: 0.5rem;
+  --background: #05080c;
+  --foreground: #eaf2f5;
+  --card: #0a1017;
+  --card-foreground: #eaf2f5;
+  --popover: #0a1017;
+  --popover-foreground: #eaf2f5;
+  --primary: #36e2d4;
+  --primary-foreground: #05080c;
+  --secondary: #111a24;
+  --secondary-foreground: #eaf2f5;
+  --muted: #111a24;
+  --muted-foreground: rgba(234, 242, 245, 0.7);
+  --accent: #111a24;
+  --accent-foreground: #eaf2f5;
+  --destructive: #ff3b5c;
+  --border: rgba(160, 220, 255, 0.14);
+  --input: rgba(160, 220, 255, 0.14);
+  --ring: #36e2d4;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    background: var(--c-bg);
+    scroll-behavior: auto;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    overflow-x: hidden;
+  }
+  ::selection {
+    background: var(--c-cyan);
+    color: var(--c-bg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--c-cyan);
+    outline-offset: 3px;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  .display {
+    font-family: var(--font-display-stack);
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+  }
+  .eyebrow {
+    font-family: var(--font-mono-stack);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--c-ink-muted);
+  }
+  .num {
+    font-family: var(--font-mono-stack);
+    font-variant-numeric: tabular-nums;
+  }
+  .gutter {
+    padding-inline: clamp(1rem, 5vw, 5rem);
+  }
+  .chip {
+    font-family: var(--font-mono-stack);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 1px solid var(--c-line-strong);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+  }
+  /* faint blueprint grid behind panels */
+  .grid-bg {
+    background-image:
+      linear-gradient(var(--c-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--c-line) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  /* CRT scanlines for terminal-like panels */
+  .scanlines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px);
+  }
+  .glow-cyan {
+    text-shadow: 0 0 28px rgba(54, 226, 212, 0.45);
+  }
+  .glow-red {
+    text-shadow: 0 0 28px rgba(255, 59, 92, 0.5);
+  }
+  /* rotating light running round a panel border */
+  .beam {
+    position: relative;
+    isolation: isolate;
+  }
+  .beam::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(from var(--beam-angle, 0deg), transparent 0 70%, var(--beam-color, var(--c-cyan)) 85%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: beam-spin 5s linear infinite;
+  }
+}
+
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+.caret {
+  animation: blink 1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
