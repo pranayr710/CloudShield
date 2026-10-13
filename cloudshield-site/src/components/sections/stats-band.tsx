@@ -1,11 +1,11 @@
 import { useRef } from 'react'
 import { gsap, useGSAP, prefersReducedMotion } from '@/lib/gsap'
-import { D, T, int, pct } from '@/lib/data'
+import { D, T, int } from '@/lib/data'
 
 const TRACKS = [
   {
     no: 'I', track: 'Classification', dataset: T.overview.name, question: 'Which attack is this flow?',
-    value: pct(T.classification.final.acc, 1), unit: 'accuracy, 10 classes', href: '#classifier',
+    value: T.classification.final.f1w.toFixed(3), unit: 'weighted F1 on unseen machines', href: '#classifier',
   },
   {
     no: 'II', track: 'Clustering', dataset: T.overview.name, question: 'What kinds of traffic exist, with no labels?',
@@ -21,7 +21,7 @@ const STATS = [
   [int(T.overview.rows), 'TON_IoT flows'],
   [String(T.overview.classes.length), 'Traffic classes'],
   [String(T.overview.machines), 'Source machines'],
-  [String(T.classification.models.length), 'Classifiers'],
+  ['10', 'Classifiers'],
   [int(D.overview.rows), 'UNSW-NB15 flows'],
 ] as const
 

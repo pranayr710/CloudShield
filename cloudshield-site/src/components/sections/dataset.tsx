@@ -90,7 +90,7 @@ function LiveFeed() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline-strong px-5 py-3.5">
         <span className="flex items-center gap-2.5">
           <span className="h-2 w-2 animate-pulse rounded-full bg-red" />
-          <span className="eyebrow text-ink">Live · {C.best} on the test set</span>
+          <span className="eyebrow text-ink">Live · {C.bestDisplay} on unseen machines</span>
         </span>
         <span className="num text-xs text-ink-muted">
           {int(seen.flows)} flows · <span className="text-red">{int(seen.attacks)} attacks</span> · <span className="text-phosphor">{int(seen.right)} right</span>

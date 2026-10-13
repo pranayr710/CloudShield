@@ -1,173 +1,158 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chapter } from '@/components/chapter'
 import { Slider } from '@/components/ui/slider'
-import { T, TON_COLOR, TON_NOTE, bytes, int, pct, tonLabel, type TonFlow } from '@/lib/data'
+import { T, TON_COLOR, int, pct } from '@/lib/data'
 import { cn } from '@/lib/utils'
 
 const C = T.classification
-const ORDER = C.order
-const ROUNDS = 10
-const SECONDS = 12
+const ORDER = C.allClasses
 
-/* ================================================================== Game 1: beat the model */
+/* ================================================================== Game 1: tune it yourself */
 
-type Answer = { flow: TonFlow; guess: string | null }
+type GridRow = { n_estimators: number; learning_rate: number; max_depth: number; cv: number; cvStd: number; test: number; testAcc: number }
+const GRID: GridRow[] = C.tuning?.grid ?? []
+const TREES = [50, 100, 200]
+const RATES = [0.05, 0.1, 0.2]
+const DEPTHS = [3, 5]
+const BUDGET = 6
+const team = C.models.find((m) => m.key === C.best)!
 
-function pickRounds(): TonFlow[] {
-  const shuffled = [...C.quiz].sort(() => Math.random() - 0.5)
-  const misses = shuffled.filter((f) => f.pred !== f.label).slice(0, 3)
-  const rest = shuffled.filter((f) => !misses.includes(f))
-  const seen = new Set<string>()
-  const varied = rest.filter((f) => (seen.has(f.label) ? false : (seen.add(f.label), true)))
-  return [...misses, ...varied, ...rest].slice(0, ROUNDS).sort(() => Math.random() - 0.5)
-}
-
-function Stat({ k, v }: { k: string; v: string }) {
+function Choice({ label, options, value, onChange }: { label: string; options: number[]; value: number; onChange: (v: number) => void }) {
   return (
-    <div className="grid gap-0.5 rounded-lg bg-paper px-3 py-2">
-      <span className="text-[0.65rem] uppercase tracking-wider text-ink-dim">{k}</span>
-      <span className="num text-sm">{v}</span>
+    <div className="grid gap-1.5">
+      <span className="eyebrow">{label}</span>
+      <div className="flex gap-1 rounded-full border border-hairline-strong bg-paper p-1">
+        {options.map((o) => (
+          <button key={o} type="button" onClick={() => onChange(o)}
+            className={cn('num flex-1 rounded-full px-3 py-1.5 text-sm transition', value === o ? 'bg-ink text-paper' : 'text-ink-muted hover:text-ink')}>
+            {o}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
-function BeatTheModel() {
-  const [rounds, setRounds] = useState<TonFlow[]>([])
-  const [i, setI] = useState(0)
-  const [answers, setAnswers] = useState<Answer[]>([])
-  const [left, setLeft] = useState(SECONDS)
-  const [finished, setFinished] = useState(false)
-  const phase: 'intro' | 'play' | 'reveal' | 'done' = rounds.length === 0 ? 'intro' : finished ? 'done' : answers.length > i ? 'reveal' : 'play'
-  const flow = rounds[i]
-  const current = answers[i]
+function TuneGame() {
+  const [n, setN] = useState(100)
+  const [lr, setLr] = useState(0.1)
+  const [depth, setDepth] = useState(3)
+  const [tries, setTries] = useState<GridRow[]>([])
+  const [training, setTraining] = useState(false)
+  const [revealed, setRevealed] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
 
-  const start = () => { setRounds(pickRounds()); setI(0); setAnswers([]); setLeft(SECONDS); setFinished(false) }
-  const answer = useCallback((guess: string | null) => {
-    setAnswers((a) => (a.length > i ? a : [...a, { flow: rounds[i], guess }]))
-  }, [i, rounds])
-  const next = () => {
-    if (i >= ROUNDS - 1) { setFinished(true); return }
-    setI(i + 1); setLeft(SECONDS)
+  if (!GRID.length) return null
+  const row = (a: number, b: number, c: number) => GRID.find((g) => g.n_estimators === a && g.learning_rate === b && g.max_depth === c)
+  const best = tries.reduce<GridRow | null>((b, t) => (!b || t.cv > b.cv ? t : b), null)
+  const gridBestCv = GRID.reduce((b, g) => (g.cv > b.cv ? g : b), GRID[0])
+  const gridBestTest = GRID.reduce((b, g) => (g.test > b.test ? g : b), GRID[0])
+  const cvMin = Math.min(...GRID.map((g) => g.cv)), cvMax = Math.max(...GRID.map((g) => g.cv))
+  const testMin = Math.min(...GRID.map((g) => g.test))
+
+  const train = () => {
+    const r = row(n, lr, depth)
+    if (!r || training || tries.length >= BUDGET) return
+    setTraining(true)
+    timer.current = window.setTimeout(() => { setTries((t) => [...t, r]); setTraining(false) }, 1100)
   }
-
-  // countdown while a round is open
-  useEffect(() => {
-    if (phase !== 'play' || !flow || finished) return
-    if (left <= 0) { answer(null); return }
-    const t = window.setTimeout(() => setLeft((s) => s - 1), 1000)
-    return () => window.clearTimeout(t)
-  }, [phase, left, flow, answer, finished])
-
-  // keys 1-9 and 0 pick a class, Enter moves on
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!flow || finished) return
-      if (phase === 'play' && /^[0-9]$/.test(e.key)) answer(ORDER[(Number(e.key) + 9) % 10])
-      else if (phase === 'reveal' && e.key === 'Enter') next()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
-  const you = answers.filter((a) => a.guess === a.flow.label).length
-  const model = answers.filter((a) => a.flow.pred === a.flow.label).length
+  const reset = () => { setTries([]); setRevealed(false) }
 
   return (
     <div className="grain grid content-start gap-5 rounded-2xl border border-hairline-strong bg-panel p-5 md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-1">
-          <span className="eyebrow">Game 1 · Beat the model</span>
-          <h3 className="display text-[1.4rem] leading-tight">You vs {C.best}</h3>
+          <span className="eyebrow">Game 1 · Tune it yourself</span>
+          <h3 className="display text-[1.4rem] leading-tight">Tune Gradient Boosting</h3>
         </div>
-        <div className="flex items-center gap-2" aria-live="polite">
-          <div className="grid justify-items-center rounded-xl bg-ink px-4 py-2 text-paper">
-            <span className="num text-2xl leading-none">{you}</span><span className="text-[0.6rem] uppercase tracking-wider opacity-70">you</span>
-          </div>
-          <span className="num text-ink-dim">:</span>
-          <div className="grid justify-items-center rounded-xl bg-red px-4 py-2 text-paper">
-            <span className="num text-2xl leading-none">{model}</span><span className="text-[0.6rem] uppercase tracking-wider opacity-80">model</span>
-          </div>
+        <div className="grid justify-items-end">
+          <span className="num text-2xl leading-none">{best ? best.cv.toFixed(4) : '–'}</span>
+          <span className="text-[0.65rem] uppercase tracking-wider text-ink-dim">your best CV F1 · {BUDGET - tries.length} tries left</span>
         </div>
       </div>
+      <p className="text-sm leading-relaxed text-ink-muted">
+        Pick the settings, train, and see the real 3-fold cross-validated weighted F1 they get. You have {BUDGET} tries to find the best one, then lock it in to see how it does on machines it has never seen.
+      </p>
 
-      {phase === 'intro' && (
-        <div className="grid gap-4">
-          <p className="max-w-[56ch] text-sm leading-relaxed text-ink-muted">
-            {ROUNDS} real flows from the test set. Read the clues, pick the traffic type before the {SECONDS}-second timer runs out, then see what the model said.
-            The model got some of these wrong, so it can be beaten. Keys 1 to 0 pick a class; Enter moves on.
-          </p>
-          <button type="button" onClick={start} className="justify-self-start rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition hover:bg-red">Start the round</button>
-        </div>
-      )}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Choice label="Trees" options={TREES} value={n} onChange={setN} />
+        <Choice label="Learning rate" options={RATES} value={lr} onChange={setLr} />
+        <Choice label="Tree depth" options={DEPTHS} value={depth} onChange={setDepth} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={train} disabled={training || tries.length >= BUDGET || revealed}
+          className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition hover:bg-red disabled:opacity-50">
+          {training ? 'Training 3 folds…' : 'Train and cross-validate'}
+        </button>
+        {best && !revealed && <button type="button" onClick={() => setRevealed(true)} className="rounded-full border border-ink px-5 py-2.5 text-sm font-semibold">Lock in my best</button>}
+        {(revealed || tries.length > 0) && <button type="button" onClick={reset} className="rounded-full px-3 py-2.5 text-sm text-ink-muted underline underline-offset-4">start over</button>}
+      </div>
 
-      {flow && !finished && (
-        <>
-          <div className="flex items-center justify-between gap-3 text-xs text-ink-dim">
-            <span className="num">flow {i + 1} of {ROUNDS} · #{flow.id}</span>
-            <span className="num">{phase === 'play' ? `${left}s` : current?.guess ? 'answered' : 'time up'}</span>
-          </div>
-          <div className="h-1 overflow-hidden rounded-full bg-panel-2">
-            <div className="h-full bg-red transition-[width] duration-1000 ease-linear" style={{ width: `${phase === 'play' ? (left / SECONDS) * 100 : 0}%` }} />
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Stat k="protocol" v={flow.f.proto} />
-            <Stat k="service" v={flow.f.service === '-' ? 'none' : flow.f.service} />
-            <Stat k="state" v={flow.f.conn_state} />
-            <Stat k="dest port" v={String(flow.f.dst_port)} />
-            <Stat k="duration" v={`${flow.f.duration.toFixed(3)} s`} />
-            <Stat k="packets out / in" v={`${int(flow.f.src_pkts)} / ${int(flow.f.dst_pkts)}`} />
-            <Stat k="bytes out" v={bytes(flow.f.src_bytes)} />
-            <Stat k="bytes in" v={bytes(flow.f.dst_bytes)} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5" role="group" aria-label="Your guess">
-            {ORDER.map((c, k) => {
-              const picked = current?.guess === c
-              const truth = phase === 'reveal' && c === flow.label
-              const modelSaid = phase === 'reveal' && c === flow.pred
-              return (
-                <button key={c} type="button" disabled={phase !== 'play'} onClick={() => answer(c)} title={TON_NOTE[c]}
-                  className={cn('relative flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition',
-                    phase === 'play' ? 'border-hairline-strong bg-paper hover:border-ink' : 'border-transparent bg-paper/60',
-                    truth && 'border-signal bg-signal/10', picked && !truth && 'border-red bg-red/10')}>
-                  <span className="num text-[0.6rem] text-ink-dim">{(k + 1) % 10}</span>
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TON_COLOR[c] }} />
-                  <span className="truncate">{tonLabel(c)}</span>
-                  {modelSaid && <span className="absolute -top-2 right-1.5 rounded bg-red px-1 text-[0.55rem] leading-4 text-paper">model</span>}
-                </button>
-              )
-            })}
-          </div>
-
-          {phase === 'reveal' && current && (
-            <div className="grid gap-3 rounded-xl border border-hairline-strong bg-paper p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div className="grid gap-1 text-sm">
-                <p>Truth: <b style={{ color: TON_COLOR[flow.label] }}>{tonLabel(flow.label)}</b>. {TON_NOTE[flow.label]}</p>
-                <p className="text-ink-muted">
-                  You: {current.guess ? <b className={current.guess === flow.label ? 'text-signal' : 'text-red'}>{tonLabel(current.guess)}</b> : <b className="text-red">no answer</b>}
-                  {' · '}Model: <b className={flow.pred === flow.label ? 'text-signal' : 'text-red'}>{tonLabel(flow.pred)}</b> ({pct(flow.proba[0]?.p ?? 0)} sure)
-                </p>
-              </div>
-              <button type="button" onClick={next} className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper transition hover:bg-red">
-                {i >= ROUNDS - 1 ? 'See the result' : 'Next flow →'}
-              </button>
+      {training && (
+        <div className="grid grid-cols-3 gap-2" aria-hidden>
+          {[0, 1, 2].map((f) => (
+            <div key={f} className="h-2 overflow-hidden rounded-full bg-panel-2">
+              <div className="h-full origin-left animate-pulse bg-red" style={{ animationDelay: `${f * 0.15}s` }} />
             </div>
-          )}
-        </>
-      )}
-
-      {finished && (
-        <div className="grid justify-items-start gap-4">
-          <span className={cn('stamp text-base', you > model ? 'text-signal' : you === model ? 'text-amber' : 'text-red')}>
-            {you > model ? 'You beat the model' : you === model ? 'A draw' : 'The model wins'}
-          </span>
-          <p className="text-sm leading-relaxed text-ink-muted">
-            You named {you} of {ROUNDS} flows, the model {model}. Across all {int(C.testRows)} test flows the model is right {pct(C.final.acc, 1)} of the time;
-            this round was stacked with some of its rare mistakes.
-          </p>
-          <button type="button" onClick={start} className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition hover:bg-red">Play again</button>
+          ))}
         </div>
       )}
+
+      {tries.length > 0 && (
+        <ol className="grid gap-1.5">
+          {tries.map((t, i) => (
+            <li key={i} className="grid grid-cols-[1.4rem_minmax(0,1.3fr)_minmax(0,1fr)_3.6rem] items-center gap-3 text-xs">
+              <span className="num text-ink-dim">{i + 1}</span>
+              <span className="num text-ink-muted">{t.n_estimators} trees · lr {t.learning_rate} · depth {t.max_depth}</span>
+              <span className="relative h-2.5 rounded-sm bg-panel-2">
+                <span className={cn('absolute inset-y-0 left-0 rounded-sm', t === best ? 'bg-red' : 'bg-ink/60')} style={{ width: `${8 + ((t.cv - cvMin) / (cvMax - cvMin || 1)) * 92}%` }} />
+              </span>
+              <span className="num text-right">{t.cv.toFixed(4)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {revealed && best && (
+        <div className="grid gap-4 rounded-xl border border-hairline-strong bg-paper p-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-0.5"><span className="eyebrow">CV F1, same machines</span><span className="num text-2xl">{best.cv.toFixed(4)}</span></div>
+            <div className="grid gap-0.5"><span className="eyebrow text-red">Test F1, unseen machines</span><span className="num text-2xl text-red">{best.test.toFixed(4)}</span></div>
+          </div>
+          <p className="text-sm leading-relaxed text-ink-muted">
+            {best === gridBestCv ? 'You found the top cross-validation setting. ' : `The top cross-validation setting was ${gridBestCv.n_estimators} trees, learning rate ${gridBestCv.learning_rate}, depth ${gridBestCv.max_depth} (${gridBestCv.cv.toFixed(4)}). `}
+            The cross-validation folds share machines with each other, the test set does not. On unseen machines the best of all 18 settings was {gridBestTest.n_estimators} trees, learning rate {gridBestTest.learning_rate}, depth {gridBestTest.max_depth} ({gridBestTest.test.toFixed(4)}).
+          </p>
+          <div className="overflow-x-auto">
+            <table className="num w-full min-w-[440px] text-center text-[0.7rem]">
+              <thead><tr className="text-ink-dim"><th className="py-1 text-left font-normal">depth · lr</th>{TREES.map((t) => <th key={t} className="font-normal">{t} trees</th>)}</tr></thead>
+              <tbody>
+                {DEPTHS.flatMap((d) => RATES.map((l) => (
+                  <tr key={`${d}-${l}`}>
+                    <td className="py-0.5 text-left text-ink-muted">{d} · {l}</td>
+                    {TREES.map((t) => {
+                      const g = row(t, l, d)!
+                      return (
+                        <td key={t} className="p-0.5">
+                          <span className={cn('block rounded px-1 py-1', g === best && 'outline outline-2 outline-red')}
+                            style={{ background: `rgba(15,110,90,${0.08 + 0.55 * ((g.test - testMin) / (gridBestTest.test - testMin || 1))})` }}>
+                            {g.cv.toFixed(3)} / <b>{g.test.toFixed(3)}</b>
+                          </span>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-[0.7rem] text-ink-dim">Each cell: CV F1 / <b>test F1 on unseen machines</b>. Darker green is better on test; your pick is outlined.</p>
+          </div>
+        </div>
+      )}
+      <p className="text-xs leading-relaxed text-ink-dim">
+        For speed, every setting here was trained on a {int(C.tuning?.sampleRows ?? 0)}-flow sample of the training machines. For comparison, the team's tuned model, trained on all {int(C.trainRows)} training flows, scores {team.f1w.toFixed(4)} on the same unseen machines: more data from the same few machines does not automatically mean better results on new ones.
+      </p>
     </div>
   )
 }
@@ -390,8 +375,10 @@ function Firewall() {
         </div>
       </div>
       <p className="text-xs leading-relaxed text-ink-dim">
-        Every packet is a real test flow carrying the final model's real attack probability. The model is unsure about only {pct(C.firewall.unsureShareTest, 1)} of all test flows,
-        so this stream over-samples those hard cases ({pct(C.firewall.hardShare)} of packets) to make the threshold matter.
+        Every packet is a real flow from the unseen test machines, carrying the final model's real attack probability.
+        {C.firewall.oversampled
+          ? `The model is unsure about only ${pct(C.firewall.unsureShareTest, 1)} of test flows, so this stream over-samples those hard cases (${pct(C.firewall.hardShare)} of packets) to make the threshold matter.`
+          : `The model is unsure (attack probability between 2% and 98%) about ${pct(C.firewall.unsureShareTest)} of these flows, so where you set the threshold really matters.`}
       </p>
     </div>
   )
@@ -405,10 +392,10 @@ export function Games() {
       tone="red"
       eyebrow="Your turn"
       title={<>Play against<br />the model</>}
-      deck={<>Two games built on real test flows and the final model's real outputs. First, try to name attacks faster and better than {C.best}. Then run the firewall yourself and feel the trade-off between catching attacks and blocking real users.</>}
+      deck={<>Two games built on the project's real results. First, tune Gradient Boosting yourself and see why cross-validation alone can mislead. Then run the firewall with the final model's real attack probabilities and feel the trade-off between catching attacks and blocking real users. To type in your own flow, open the live models.</>}
     >
       <div className="grid gap-4 xl:grid-cols-2">
-        <BeatTheModel />
+        <TuneGame />
         <Firewall />
       </div>
     </Chapter>

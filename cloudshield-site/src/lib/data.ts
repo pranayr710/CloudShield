@@ -141,9 +141,10 @@ export type TonFields = {
 }
 export type TonFlow = { id: number; label: string; pred: string; proba: { name: string; p: number }[]; f: TonFields }
 export type TonModel = {
-  model: string; part: 'A' | 'B'; acc: number; precision: number; recall: number; f1w: number; f1m: number; auc: number
-  fit: number; trainRows: number; params: string; cvTune: number | null; tried: number
+  model: string; key: string; part: 'A' | 'B'; tuned: boolean
+  acc: number; f1w: number; f1m: number; params: string
 }
+export type TuneRow = { n_estimators: number; learning_rate: number; max_depth: number; cv: number; cvStd: number; test: number; testAcc: number }
 
 export type TonData = {
   overview: {
@@ -151,22 +152,30 @@ export type TonData = {
     rows: number; rowsClean: number; duplicates: number; columns: number; machines: number; attackShare: number
     classes: { name: string; count: number; machines: number }[]
   }
+  /** From notebooks/03_classification_1.ipynb: test set = machines never seen in training */
   classification: {
     best: string
+    bestDisplay: string
+    split: string
+    /** classes present in the test fold, most frequent first */
     order: string[]
+    allClasses: string[]
+    missingFromTest: string[]
     models: TonModel[]
-    final: { name: string; acc: number; stages: { stage: string; acc: number; f1w: number; f1m: number; auc: number }[] }
-    cv: { model: string; mean: number; std: number; folds: number[] }[]
-    confusion: { labels: string[]; counts: number[][]; norm: number[][] }
+    final: { acc: number; f1w: number; f1m: number; precision: number; recall: number; auc: number }
+    finalParams: Record<string, number>
+    searches: { model: string; params: string; cv: number; test: number }[]
+    perClass: { name: string; precision: number; recall: number; f1: number }[]
+    confusion: { rows: string[]; cols: string[]; counts: number[][]; norm: number[][] }
     recall: Record<string, number>
-    stress: { acc: number; f1w: number; f1m: number; classes: string[] }
-    trainRows: number; testRows: number; features: number
+    trainRows: number; testRows: number; features: number; trainMachines: number; testMachines: number
     lab: TonFlow[]
     stream: TonFlow[]
-    /** 5 test flows per class, including some the model gets wrong */
-    quiz: TonFlow[]
-    /** [P(attack) from the final model, class index in `order`]; uncertain flows oversampled */
-    firewall: { flows: [number, number][]; hardShare: number; unsureShareTest: number }
+    /** [P(attack) from the final model, class index in `allClasses`]; uncertain flows oversampled */
+    firewall: { flows: [number, number][]; hardShare: number; unsureShareTest: number; oversampled: boolean }
+    /** 5-fold CV grouped by source machine, training set only */
+    cv5: { model: string; mean: number; std: number; f1m: number; acc: number; folds: number[] }[]
+    tuning: { sampleRows: number; grid: TuneRow[] } | null
   }
   clustering: {
     sample: number; k: number

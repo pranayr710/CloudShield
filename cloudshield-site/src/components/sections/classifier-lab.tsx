@@ -93,9 +93,9 @@ export function ClassifierLab() {
       id="classifier"
       index="03"
       tone="red"
-      eyebrow={`Classification · ${C.best}`}
+      eyebrow={`Classification · ${C.bestDisplay}`}
       title={<>Name the<br />attack</>}
-      deck={<>Pick a flow the model has never seen. The final model, a tuned {C.best}, reads its {C.features} encoded features and gives a probability for each of the ten classes. Over all {int(C.testRows)} test flows it is right {pct(C.final.acc, 2)} of the time.</>}
+      deck={<>Pick a flow from a machine the model never saw in training. The final model, a tuned Gradient Boosting classifier, reads its {C.features} encoded features and gives a probability for each of the ten classes. On all {int(C.testRows)} flows from the unseen machines it is right {pct(C.final.acc, 1)} of the time.</>}
     >
       <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Choose a flow by its true class">
         {C.order.map((c) => (
@@ -170,7 +170,7 @@ export function ClassifierLab() {
             <span className="eyebrow">True class</span>
             <p className="font-medium" style={{ color: TON_COLOR[flow.label] }}>{tonLabel(flow.label)}</p>
             <p className="text-sm leading-relaxed text-ink-muted">{TON_NOTE[flow.label]}</p>
-            <p className="num text-xs text-ink-dim">this class is recalled {pct(C.recall[flow.label], 1)} of the time on the test set</p>
+            <p className="num text-xs text-ink-dim">this class is recalled {pct(C.recall[flow.label], 1)} of the time on the unseen machines</p>
           </div>
           <p className="text-xs leading-relaxed text-ink-dim">
             Each class has two flows the model got right and, where one exists, one it got wrong. Click a class again for the next.

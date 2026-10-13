@@ -6,23 +6,26 @@ import { D, T, int, pct, tonLabel } from '@/lib/data'
 
 const C = T.classification
 const K = T.clustering
-const gnb = C.models.find((m) => m.model === 'Gaussian NB')!
-const ensembles = C.models.filter((m) => ['Gradient Boosting', 'Bagging', 'Random Forest'].includes(m.model))
+const by = (key: string) => C.models.find((m) => m.key === key)!
+const gbcBase = by('GradientBoostingClassifier'), gbcTuned = by(C.best), gnb = by('Gaussian NB')
+const gbcSearch = C.searches.find((s) => s.model === C.best)
+const worst = [...C.order].sort((a, b) => C.recall[a] - C.recall[b])[0]
+const wRow = C.confusion.norm[C.confusion.rows.indexOf(worst)]
+const worstTo = C.confusion.cols.filter((c) => c !== worst).reduce((b, c) => (wRow[C.confusion.cols.indexOf(c)] > wRow[C.confusion.cols.indexOf(b)] ? c : b))
 const normalCluster = [...K.clusters].filter((c) => c.size >= 50)
   .map((c) => ({ c, n: c.mix.find((m) => m.name === 'normal')?.share ?? 0 })).sort((a, b) => b.n - a.n)[0]
-const mitm = T.overview.classes.find((c) => c.name === 'mitm')!
 
 const FINDINGS: [string, string, string][] = [
-  [pct(C.final.acc, 2), 'Attacks can be named from the flow alone',
-    `A tuned ${C.best} labels ${int(C.testRows)} unseen flows into ten classes with weighted F1 ${C.models[0].f1w.toFixed(4)}, without IP addresses, ports or the label column.`],
-  [`${Math.min(...ensembles.map((e) => e.f1w)).toFixed(3)}+`, 'Ensembles of trees lead',
-    `Gradient Boosting, Bagging and Random Forest all reach weighted F1 above ${Math.min(...ensembles.map((e) => e.f1w)).toFixed(3)}. Gaussian NB, which assumes features are independent, manages ${gnb.f1w.toFixed(3)}.`],
-  [pct(C.recall.mitm, 1), 'The rarest attack is the hardest',
-    `Man-in-the-middle has ${int(mitm.count)} flows, about ${pct(mitm.count / T.overview.rowsClean, 1)} of the data. It is the only class the final model recalls less than 90% of the time.`],
-  [`${pct(C.final.acc, 0)} → ${pct(C.stress.acc, 0)}`, 'New machines are a harder exam',
-    `Tested on source machines it never trained on, the same configuration drops to ${pct(C.stress.acc, 1)} accuracy. Each attack came from only a few hosts, so a deployment would need retraining on its own network.`],
+  [C.final.f1w.toFixed(3), 'Attacks can be named on a new network',
+    `Tested only on ${C.testMachines} machines it never saw in training, the tuned Gradient Boosting model labels ${int(C.testRows)} flows with weighted F1 ${C.final.f1w.toFixed(4)} and accuracy ${pct(C.final.acc, 1)}.`],
+  [`+${(gbcTuned.f1w - gbcBase.f1w).toFixed(3)}`, 'Tuning paid off',
+    `Randomized search moved Gradient Boosting from weighted F1 ${gbcBase.f1w.toFixed(3)} to ${gbcTuned.f1w.toFixed(3)}: deeper trees (5), a smaller learning rate (0.05) and 80% row subsampling. Gaussian NB, which assumes independent features, manages ${gnb.f1w.toFixed(3)}.`],
+  [pct(C.recall[worst], 1), `${tonLabel(worst)} is the weak spot`,
+    `Only ${pct(C.recall[worst], 1)} of ${tonLabel(worst)} flows from the unseen machines are recognised; the rest are mostly labelled ${tonLabel(worstTo)}. On a new network the two kinds of flood look alike.`],
+  [gbcSearch ? `${gbcSearch.cv.toFixed(2)} → ${gbcSearch.test.toFixed(2)}` : '–', 'Cross-validation flatters',
+    `The tuning search scored ${gbcSearch?.cv.toFixed(3)} in cross-validation, where folds share machines, against ${gbcSearch?.test.toFixed(3)} on unseen machines. Only a grouped test set shows the real gap.`],
   [String(K.k), 'Behaviour groups without labels',
-    `K-Means finds ${K.k} clusters that are stable across resamples (ARI ${K.stability.ari?.[0].toFixed(2)}). One is ${pct(normalCluster.n)} ${tonLabel('normal').toLowerCase()} traffic; the others mix attack families.`],
+    `K-Means finds ${K.k} clusters that are stable across resamples (ARI ${K.stability.ari?.[0].toFixed(2)}). One is ${pct(normalCluster.n)} normal traffic; the others mix attack families.`],
   [D.regression.models[0].r2.toFixed(4), 'Reply size is predictable',
     `On ${D.overview.dataset.name}, a ${D.regression.best} forecasts the bytes a flow sends back with R² ${D.regression.models[0].r2.toFixed(4)} and a typical error of ${int(D.regression.models[0].mae)} bytes.`],
 ]

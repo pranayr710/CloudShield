@@ -42,6 +42,11 @@ export function Nav() {
             </a>
           ))}
         </div>
+        {/* the live-model window: its own page, opened in a new tab */}
+        <a href="/predict.html" target="_blank" rel="noopener"
+          className="ml-auto shrink-0 rounded-full bg-red px-3.5 py-1.5 text-[0.82rem] font-semibold text-paper transition hover:brightness-110 md:ml-0">
+          Live models ↗
+        </a>
       </div>
       <div ref={bar} aria-hidden className="h-[2px] origin-left scale-x-0 bg-red" />
     </nav>

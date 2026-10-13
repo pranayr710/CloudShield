@@ -3,16 +3,15 @@ import { gsap, ScrollTrigger, useGSAP, prefersReducedMotion } from '@/lib/gsap'
 import { D, T, int, pct } from '@/lib/data'
 
 const C = T.classification
-const best = C.models[0]
 
 const ITEMS: [string, string][] = [
   ['TON_IoT flows', int(T.overview.rows)],
   ['Attack share', pct(T.overview.attackShare, 1)],
-  ['Classifiers compared', String(C.models.length)],
-  [`${C.best} accuracy`, pct(C.final.acc, 2)],
-  ['Weighted F1', best.f1w.toFixed(4)],
-  ['MITM recall', pct(C.recall.mitm, 1)],
-  ['On unseen machines', pct(C.stress.acc, 1)],
+  ['Classifiers compared', '10'],
+  ['Final model', C.bestDisplay],
+  ['Weighted F1, unseen machines', C.final.f1w.toFixed(4)],
+  ['Accuracy, unseen machines', pct(C.final.acc, 1)],
+  ['Unseen test machines', String(C.testMachines)],
   ['Traffic clusters', String(T.clustering.k)],
   [`Regression R² (${D.overview.dataset.name})`, D.regression.models[0].r2.toFixed(4)],
 ]

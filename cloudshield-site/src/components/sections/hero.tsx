@@ -55,7 +55,7 @@ export function Hero() {
         titleTop="Cloud"
         titleBottom="Shield"
         accentHex="#efeae0"
-        immersedLines={[`${int(T.overview.rows)} IoT network flows.`, `${pct(T.overview.attackShare)} of them are attacks.`, `${pct(final.acc, 1)} named correctly.`]}
+        immersedLines={[`${int(T.overview.rows)} IoT network flows.`, `${pct(T.overview.attackShare)} of them are attacks.`, `${pct(final.acc, 1)} named on machines it never saw.`]}
         kicker={
           <div className="grid justify-items-center gap-3 text-center">
             <span className="eyebrow">A machine-learning briefing on network attacks · {T.overview.name} and {D.overview.dataset.name}</span>

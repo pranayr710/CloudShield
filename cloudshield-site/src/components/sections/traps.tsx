@@ -77,26 +77,26 @@ function Machines() {
   const [on, setOn] = useState(false)
   const few = O.classes.filter((c) => c.name !== 'normal').sort((a, b) => a.machines - b.machines)
   return (
-    <Card index="C" title="Who, not what" toggle="Let the model see IP addresses" on={on} setOn={setOn}
+    <Card index="C" title="Same machine, both sides" toggle="Split the flows at random" on={on} setOn={setOn}
       verdict={on
-        ? <>Password and XSS attacks each come from just two machines. A model given IPs can learn which host attacked, and would fail on any new network. </>
-        : <>Source IP, destination IP and source port are dropped. The model must learn what the traffic looks like, not who sent it.</>}>
+        ? <>Password and XSS attacks each come from just two machines. Split at random, the same attacking machine sits in training and in test, and the model can recognise the machine instead of the attack.</>
+        : <>Flows are split by source machine (StratifiedGroupKFold on the source IP): every test flow comes from a machine the model has never seen.</>}>
       <div className="grid gap-1.5">
         {few.map((c) => (
           <div key={c.name} className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-3 text-xs">
             <span className="text-ink-muted">{tonLabel(c.name)}</span>
             <span className="flex gap-1">
               {Array.from({ length: c.machines }, (_, i) => (
-                <span key={i} className={cn('grid h-4 w-6 place-items-center rounded-sm text-[0.55rem] transition-colors', on ? 'text-paper' : 'bg-panel-2 text-ink-dim')}
+                <span key={i} className={cn('grid h-4 w-9 place-items-center rounded-sm text-[0.55rem] transition-colors', on ? 'text-paper' : 'bg-panel-2 text-ink-dim')}
                   style={on ? { background: TON_COLOR[c.name] } : undefined}>
-                  {on ? `M${i + 1}` : '·'}
+                  {on ? 'both' : 'one'}
                 </span>
               ))}
             </span>
           </div>
         ))}
       </div>
-      <span className="num text-xs text-ink-dim">source machines behind each attack type</span>
+      <span className="num text-xs text-ink-dim">source machines behind each attack type{on ? ': split at random, a machine lands on both sides' : ': grouped, each machine on one side only'}</span>
     </Card>
   )
 }

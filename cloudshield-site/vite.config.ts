@@ -11,4 +11,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      // two pages: the briefing (index) and the live-model window (predict)
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        predict: path.resolve(__dirname, 'predict.html'),
+      },
+    },
+  },
 })

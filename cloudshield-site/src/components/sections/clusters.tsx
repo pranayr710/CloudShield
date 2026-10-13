@@ -5,7 +5,7 @@ import { CLUSTER_COLOR, T, TON_COLOR, int, pct, tonLabel } from '@/lib/data'
 import { cn } from '@/lib/utils'
 
 const K = T.clustering
-const ORDER = T.classification.order
+const ORDER = T.classification.allClasses
 
 type ColorBy = 'cluster' | 'class'
 
