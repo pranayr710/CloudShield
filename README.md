@@ -14,7 +14,7 @@ Every connection on a network leaves a flow record: duration, packets and bytes 
 |---|---|---|---|---|
 | Classification (Part A + Part B) | Which of ten traffic types is this flow: normal, or one of nine attacks? | 10 supervised classifiers | TON_IoT (network) | [`notebooks/classification.ipynb`](notebooks/classification.ipynb) |
 | Clustering | Without labels, what natural groups of behaviour exist? | K-Means, Agglomerative | TON_IoT (network) | [`notebooks/clustering.ipynb`](notebooks/clustering.ipynb) |
-| Regression | How many bytes will the reply side of a flow carry? | 10 regressors | UNSW-NB15 | [`notebooks/02_regression_modeling.ipynb`](notebooks/02_regression_modeling.ipynb) |
+| Regression | How many bytes will the reply side of a flow carry? | 10 regressors | UNSW-NB15 | 10 regressors evaluated |
 
 ---
 
@@ -122,7 +122,6 @@ CloudShield/
 │   ├── classification.ipynb             Classification Part A + B, TON_IoT
 │   ├── clustering.ipynb                 Clustering, TON_IoT
 │   ├── 01_eda.ipynb                     EDA, UNSW-NB15
-│   ├── 02_regression_modeling.ipynb     Regression, UNSW-NB15
 │   ├── 03_classification.ipynb          Review 1 Part A on UNSW-NB15 (superseded)
 │   └── 03_classification_1.ipynb        early Part B exploration on TON_IoT (superseded)
 ├── preprocessing/                       UNSW-NB15 preprocessing notebooks
@@ -157,7 +156,6 @@ Datasets are not committed.
 |---|---|---|
 | `notebooks/classification.ipynb` | TON_IoT CSV | about 50 minutes, half of it hyperparameter search |
 | `notebooks/clustering.ipynb` | TON_IoT CSV | about 2 minutes |
-| `notebooks/02_regression_modeling.ipynb` | `processed_data/` | see notebook |
 
 Open a notebook and run all cells top to bottom. The TON_IoT notebooks look for the CSV in `data/raw/TON_IoT/` locally, or in any dataset attached under `/kaggle/input/` when run on Kaggle, and write their tables, figures and final model to `results/` (or `/kaggle/working` on Kaggle).
 
