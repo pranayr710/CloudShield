@@ -35,3 +35,6 @@ models/*
 
 # Local-only notebooks
 notebooks/02_regression_modeling.ipynb
+
+# Hugging Face Space repository
+Ml_Capstone/
