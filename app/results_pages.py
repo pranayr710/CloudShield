@@ -16,6 +16,7 @@ RES, REP = ROOT / "results", ROOT / "reports"
 SITE = ROOT / "cloudshield-site" / "src" / "data"
 LABEL = {"ddos": "DDoS", "dos": "DoS", "xss": "XSS", "mitm": "MITM"}
 name = lambda c: LABEL.get(c, c.capitalize())  # noqa: E731
+SHOW_CV5 = False  # 5-fold CV results are left out for now; set True to show them
 PART_A = {"Logistic Regression", "K-Nearest Neighbors", "Gaussian NB", "Decision Tree", "SVC (RBF)"}
 
 PAGES = ["Live predictions", "Overview", "Classification", "Clustering", "Regression", "Reports and downloads"]
@@ -100,15 +101,19 @@ def classification() -> None:
         for s in C["searches"]:
             st.caption(f"{s['model']}: best {s['params']}; CV {s['cv']:.4f} on training machines vs {s['test']:.4f} on unseen machines.")
     with right:
-        st.markdown("**5-fold cross-validation of the top two (weighted F1)**")
-        g, s = csv(RES / "classification_cv5_top2.csv"), csv(RES / "classification_cv5_top2_stratified.csv")
-        rows = []
-        for label, df in (("grouped by machine", g), ("stratified", s)):
-            if df is not None:
-                rows += [{"CV": label, "Model": r["Model"], "Mean": r["CV F1w mean"], "Std": r["CV F1w std"], "Folds": r["F1w per fold"]} for _, r in df.iterrows()]
-        if rows:
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
-            st.caption("Grouped folds keep each machine on one side. A fold that holds every machine of an attack type never trains on it, so that fold's score collapses; stratified folds share machines and score higher.")
+        if SHOW_CV5:
+            st.markdown("**5-fold cross-validation of the top two (weighted F1)**")
+            rows = []
+            for label, path in (("grouped by machine", RES / "classification_cv5_top2.csv"),
+                                ("stratified", RES / "classification_cv5_top2_stratified.csv")):
+                df = csv(path)
+                if df is not None:
+                    rows += [{"CV": label, "Model": r["Model"], "Mean": r["CV F1w mean"], "Std": r["CV F1w std"],
+                              "Folds": r["F1w per fold"]} for _, r in df.iterrows()]
+            if rows:
+                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+                st.caption("Grouped folds keep each machine on one side. A fold that holds every machine of an attack type "
+                           "never trains on it, so that fold's score collapses; stratified folds share machines and score higher.")
 
     st.subheader("Where the final model goes wrong")
     cm = C["confusion"]
@@ -182,8 +187,8 @@ def reports() -> None:
     st.header("Reports and downloads")
     files = [
         ("Classification · 12 configurations (TON_IoT)", RES / "classification_12model_ton_iot.csv"),
-        ("Classification · 5-fold CV, grouped by machine", RES / "classification_cv5_top2.csv"),
-        ("Classification · 5-fold CV, stratified", RES / "classification_cv5_top2_stratified.csv"),
+        *([("Classification · 5-fold CV, grouped by machine", RES / "classification_cv5_top2.csv"),
+           ("Classification · 5-fold CV, stratified", RES / "classification_cv5_top2_stratified.csv")] if SHOW_CV5 else []),
         ("Clustering · metrics", RES / "clustering_metrics_ton_iot.csv"),
         ("Clustering · stability over 5 runs", RES / "clustering_stability_ton_iot.csv"),
         ("Regression · 10 models (UNSW-NB15)", REP / "regression_results.csv"),
