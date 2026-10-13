@@ -32,7 +32,7 @@ function Dumbbell() {
         <div className="flex gap-1 rounded-full border border-hairline-strong p-1" role="tablist">
           {([['r2', 'R², validation vs test'], ['rmse', 'Error in bytes']] as const).map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)}
-              className={cn('rounded-full px-3 py-1.5 text-xs font-medium transition', view === k ? 'bg-cyan text-carbon' : 'text-ink-muted hover:text-ink')}>{l}</button>
+              className={cn('rounded-full px-3 py-1.5 text-xs font-medium transition', view === k ? 'bg-signal text-paper' : 'text-ink-muted hover:text-ink')}>{l}</button>
           ))}
         </div>
       </div>
@@ -49,12 +49,12 @@ function Dumbbell() {
                   <span className="absolute inset-x-0 top-1/2 h-px bg-hairline-strong" />
                   <span className="absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-red/70 transition-all duration-700"
                     style={{ left: x(Math.min(m.r2, m.r2Val)), width: `calc(${x(Math.max(m.r2, m.r2Val))} - ${x(Math.min(m.r2, m.r2Val))})` }} />
-                  <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-ink-muted bg-carbon transition-all duration-700" style={{ left: x(m.r2Val) }} title="validation" />
-                  <span className={cn('absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all duration-700', i === 0 ? 'bg-cyan shadow-[0_0_12px_#36e2d4]' : 'bg-ink')} style={{ left: x(m.r2) }} title="test" />
+                  <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-ink-muted bg-paper transition-all duration-700" style={{ left: x(m.r2Val) }} title="validation" />
+                  <span className={cn('absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full transition-all duration-700', i === 0 ? 'bg-signal' : 'bg-ink')} style={{ left: x(m.r2) }} title="test" />
                 </span>
               ) : (
                 <span className="relative h-3 rounded-full bg-panel-2">
-                  <span className={cn('absolute inset-y-0 left-0 rounded-full transition-[width] duration-700', i === 0 ? 'bg-cyan' : 'bg-ink/70')} style={{ width: `${(m.rmse / maxRmse) * 100}%` }} />
+                  <span className={cn('absolute inset-y-0 left-0 rounded-full transition-[width] duration-700', i === 0 ? 'bg-signal' : 'bg-ink/70')} style={{ width: `${(m.rmse / maxRmse) * 100}%` }} />
                   <span className="absolute inset-y-[-5px] w-px bg-red" style={{ left: `${(R.baselineRmse / maxRmse) * 100}%` }} />
                 </span>
               )}
@@ -85,13 +85,13 @@ function Scatter() {
       <svg viewBox="0 0 300 300" className="w-full" role="img" aria-label="Scatter plot of predicted against actual bytes; points lie along the diagonal">
         {[0, 2, 4, 6, 8, 10, 12, 14].filter((t) => t <= max).map((t) => (
           <g key={t}>
-            <line x1={s(t)} x2={s(t)} y1={10} y2={290} stroke="rgba(160,220,255,0.06)" />
-            <line y1={300 - s(t)} y2={300 - s(t)} x1={10} x2={290} stroke="rgba(160,220,255,0.06)" />
+            <line x1={s(t)} x2={s(t)} y1={10} y2={290} stroke="rgba(22,20,15,0.06)" />
+            <line y1={300 - s(t)} y2={300 - s(t)} x1={10} x2={290} stroke="rgba(22,20,15,0.06)" />
           </g>
         ))}
-        <line x1={10} y1={290} x2={290} y2={10} stroke="#ff3b5c" strokeOpacity="0.6" strokeDasharray="4 4" />
+        <line x1={10} y1={290} x2={290} y2={10} stroke="#e5481c" strokeOpacity="0.6" strokeDasharray="4 4" />
         {R.scatter.map(([a, p], i) => (
-          <circle key={i} cx={s(a)} cy={300 - s(p)} r="1.6" fill="#36e2d4" fillOpacity="0.45" />
+          <circle key={i} cx={s(a)} cy={300 - s(p)} r="1.6" fill="#0f6e5a" fillOpacity="0.45" />
         ))}
       </svg>
       <p className="text-sm leading-relaxed text-ink-muted">
@@ -118,7 +118,7 @@ function Importance() {
         <div key={f.name} className="grid grid-cols-[7rem_minmax(0,1fr)_3.5rem] items-center gap-3 text-sm">
           <span className="num truncate text-ink-muted">{f.name}</span>
           <span className="relative h-2.5 rounded-full bg-panel-2">
-            <span data-bar className="absolute inset-y-0 left-0 origin-left rounded-full bg-cyan" style={{ width: `${Math.max(0.8, Math.sqrt(f.value / top[0].value) * 100)}%` }} />
+            <span data-bar className="absolute inset-y-0 left-0 origin-left rounded-full bg-signal" style={{ width: `${Math.max(0.8, Math.sqrt(f.value / top[0].value) * 100)}%` }} />
           </span>
           <span className="num text-right">{pct(f.value, 1)}</span>
         </div>
@@ -132,7 +132,7 @@ function Importance() {
 
 function Tuning() {
   return (
-    <div className="beam grid content-start gap-6 rounded-2xl bg-panel p-6 md:p-8">
+    <div className="grain grid border border-hairline-strong content-start gap-6 rounded-2xl bg-panel p-6 md:p-8">
       <span className="eyebrow">Tuned with GridSearchCV, then cross-validated</span>
       <div className="grid gap-4 sm:grid-cols-2">
         {R.tuning.map((t) => (
@@ -141,7 +141,7 @@ function Tuning() {
             <div className="flex items-baseline gap-2">
               <span className="num text-ink-dim line-through">{int(t.rmseBefore)}</span>
               <span className="text-ink-dim">→</span>
-              <span className="num text-2xl font-medium text-cyan">{int(t.rmseAfter)}</span>
+              <span className="num text-2xl font-medium text-signal">{int(t.rmseAfter)}</span>
               <span className="text-xs text-ink-dim">bytes RMSE</span>
             </div>
             <span className="num text-xs text-ink-muted">R² {t.r2Before.toFixed(4)} → {t.r2After.toFixed(4)} · {pct(1 - t.rmseAfter / t.rmseBefore, 0)} less error</span>
@@ -164,10 +164,10 @@ function Tuning() {
 export function Models() {
   return (
     <Chapter
-      id="models"
-      index="05"
-      eyebrow="Model comparison"
-      title={<>Ten models,<br />one winner</>}
+      id="regression-models"
+      index="09"
+      eyebrow={`Regression · ${D.overview.dataset.name} · model comparison`}
+      title={<>Ten regressors,<br />one winner</>}
       deck={<>Linear models, regularised ones, kernels, neighbours and trees, all trained on the same {int(R.trainRows)} flows and scored on the same test set. Tree ensembles win because traffic volume is full of thresholds and interactions a straight line cannot draw.</>}
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">

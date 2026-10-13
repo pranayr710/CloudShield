@@ -1,6 +1,6 @@
 # CloudShield site
 
-Interactive demo for the CloudShield ML project. Every number on the site comes from the project's notebooks and saved models.
+Presentation site for the CloudShield ML project: classification and clustering on TON_IoT, regression on UNSW-NB15. Every number on the site comes from the project's notebooks and saved models.
 
 ## Run it
 
@@ -18,26 +18,24 @@ npm run preview      # http://localhost:4173
 
 The videos and hero frames are stored locally, so the only things that need internet are the Google fonts.
 
-## Updating the numbers (new dataset for Review 2)
+## Updating the numbers
 
-The site reads one file, `src/data/cloudshield.json`. A script writes it from the ML project:
+The site reads two files, written by two scripts from the ML project's notebooks and saved models:
+
+| File | Script | Content |
+|---|---|---|
+| `src/data/toniot.json` | `scripts/export_ton_iot.py` | TON_IoT classification (10 models, final model, confusion matrix, stress test) and clustering |
+| `src/data/cloudshield.json` | `scripts/export_data.py` | UNSW-NB15 regression |
+
+After rerunning the notebooks:
 
 ```bash
-py -3.13 scripts/export_data.py
+py -3.10 scripts/export_ton_iot.py     # the Python that ran notebooks/classification.ipynb
+py -3.13 scripts/export_data.py        # the Python that saved the UNSW-NB15 models
+npm run build
 ```
 
-Run it with the Python whose scikit-learn version saved the models (currently 1.8). To switch datasets:
-
-1. Rerun the notebooks so `reports/*.csv`, `processed_data/*.csv` and `models/*.joblib` are up to date.
-2. Edit the `CONFIG` block at the top of `scripts/export_data.py`: file paths, label and target column names, the what-if feature, the leaky columns, and the few numbers that exist only in notebook output (`REG_CV`, `REG_BASELINE_RMSE`, `CONTAMINATION`).
-3. Run the script, then run `npm run build`.
-
-Text that is specific to UNSW-NB15 also needs editing by hand:
-- the class descriptions in `src/lib/data.ts` (`CLASS_NOTE`, `CLASS_COLOR`)
-- the dataset deck in `src/components/sections/dataset.tsx`
-- the leakage card in `src/components/sections/traps.tsx` (`dmean × dpkts`)
-
-The clustering numbers are currently computed by the export script on a 6,000-flow sample, because notebook 04 doesn't exist yet. Once it does, swap in its results.
+Each script must run with the scikit-learn version that saved its models, or joblib will refuse to load them.
 
 ## Stack
 
@@ -46,7 +44,7 @@ React 19 + TypeScript + Vite · Tailwind CSS 4 · shadcn/ui (`src/components/ui`
 | Path | Contents |
 |---|---|
 | `src/components/ui/hero-scrub.tsx` | Scroll-scrubbed hero (140 WebP frames in `public/frames/server`) |
-| `src/components/sections/` | One file per chapter: dataset, classifier lab, confusion matrix, forecaster, models, traps, clusters, findings |
+| `src/components/sections/` | One file per chapter: dataset, traps, classifier lab, ten-model leaderboard, errors and stress test, clusters, regression forecaster and models, findings |
 | `src/lib/data.ts` | Types and formatting helpers for the exported JSON |
-| `scripts/export_data.py` | Builds `src/data/cloudshield.json` |
+| `scripts/export_ton_iot.py`, `scripts/export_data.py` | Build the two data files |
 | `public/videos/` | Vecteezy clips re-encoded to 1280px H.264, credited in the footer |

@@ -8,11 +8,11 @@ type Props = {
   quote: ReactNode
   value: string
   caption: string
-  tone?: 'cyan' | 'red'
+  tone?: 'signal' | 'red'
 }
 
 /** Full-bleed video break between chapters, carrying one finding. */
-export function Interlude({ video, quote, value, caption, tone = 'cyan' }: Props) {
+export function Interlude({ video, quote, value, caption, tone = 'signal' }: Props) {
   const root = useRef<HTMLElement>(null)
   const frame = useRef<HTMLDivElement>(null)
   const quoteRef = useRef<HTMLParagraphElement>(null)
@@ -43,7 +43,7 @@ export function Interlude({ video, quote, value, caption, tone = 'cyan' }: Props
         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <p ref={quoteRef} className="max-w-[24ch] font-serif text-[clamp(2rem,4.4vw,3.8rem)] italic leading-[1.08]">{quote}</p>
           <div className="grid gap-1 md:text-right">
-            <span ref={valueRef} className={cn('num text-[clamp(2.6rem,6vw,5rem)] font-medium leading-none', tone === 'red' ? 'text-red glow-red' : 'text-cyan glow-cyan')}>{value}</span>
+            <span ref={valueRef} className={cn('num text-[clamp(2.6rem,6vw,5rem)] font-medium leading-none', tone === 'red' ? 'text-red' : 'text-signal')}>{value}</span>
             <span className="eyebrow max-w-[34ch] md:justify-self-end">{caption}</span>
           </div>
         </div>

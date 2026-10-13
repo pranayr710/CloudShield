@@ -10,11 +10,11 @@ type Props = {
   deck?: ReactNode
   children: ReactNode
   className?: string
-  tone?: 'cyan' | 'red'
+  tone?: 'signal' | 'red'
 }
 
 /** A numbered chapter: header with a line-by-line reveal and a scrambled index, then the content. */
-export function Chapter({ id, index, eyebrow, title, deck, children, className, tone = 'cyan' }: Props) {
+export function Chapter({ id, index, eyebrow, title, deck, children, className, tone = 'signal' }: Props) {
   const root = useRef<HTMLElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -49,7 +49,7 @@ export function Chapter({ id, index, eyebrow, title, deck, children, className, 
         <header className="mb-12 grid gap-6 md:mb-16 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:items-end">
           <div className="grid gap-5">
             <div className="flex items-center gap-4" data-fade>
-              <span ref={indexRef} className={cn('num text-sm', tone === 'red' ? 'text-red' : 'text-cyan')}>{index}</span>
+              <span ref={indexRef} className={cn('num text-sm', tone === 'red' ? 'text-red' : 'text-signal')}>{index}</span>
               <span className="h-px w-10 bg-hairline-strong" />
               <span className="eyebrow">{eyebrow}</span>
             </div>

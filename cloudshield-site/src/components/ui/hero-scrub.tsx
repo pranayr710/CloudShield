@@ -258,7 +258,7 @@ export function HeroScrub({
   return (
     <section
       ref={sectionRef}
-      className={`relative w-full overflow-clip text-white ${bgClassName}`}
+      className={`relative w-full overflow-clip text-ink ${bgClassName}`}
       style={{ height: tallHeight }}
       aria-label="Cinematic scroll-scrubbed hero"
     >
@@ -267,12 +267,10 @@ export function HeroScrub({
         className="sticky top-0 flex h-[100svh] w-full flex-col items-center justify-center overflow-hidden"
       >
         <div ref={bgRef} aria-hidden className="absolute inset-0 z-0" style={{ backgroundColor: accentHex }} />
-        <div aria-hidden className="absolute inset-0 z-0 bg-black/30" />
+        {/* engineering-paper grid and a soft edge so the page reads as printed, not as a screen */}
+        <div aria-hidden className="grid-bg absolute inset-0 z-0 opacity-70" />
         <div aria-hidden className="absolute inset-0 z-0" style={{
-          background: "radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-        }} />
-        <div aria-hidden className="absolute inset-0 z-0" style={{
-          background: "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)",
+          background: "radial-gradient(ellipse at center, transparent 55%, rgba(22,20,15,0.10) 100%)",
         }} />
 
         <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-3 md:gap-4">
@@ -280,7 +278,7 @@ export function HeroScrub({
             fontSize: "clamp(2.1rem, 5.4vw, 5.4rem)", lineHeight: 0.85, letterSpacing: "-0.04em",
           }}>{titleTop}</h2>
 
-          <div ref={cardRef} className="relative overflow-hidden rounded-[12px] bg-black shadow-[0_20px_80px_rgba(0,0,0,0.55)] ring-1 ring-white/10 will-change-transform md:rounded-[16px]" style={{
+          <div ref={cardRef} className="relative overflow-hidden rounded-[12px] bg-black shadow-[0_30px_80px_rgba(22,20,15,0.35)] ring-1 ring-black/20 will-change-transform md:rounded-[16px]" style={{
             width: `min(92vw, calc(50svh * ${aspect}))`,
             height: `min(50svh, calc(92vw / ${aspect}))`,
             aspectRatio: aspect,
@@ -292,7 +290,7 @@ export function HeroScrub({
             {!usesFrames && media}
           </div>
 
-          <h2 ref={titleBottomRef} className="display whitespace-nowrap text-cyan glow-cyan" style={{
+          <h2 ref={titleBottomRef} className="display whitespace-nowrap text-red" style={{
             fontSize: "clamp(2.1rem, 5.4vw, 5.4rem)", lineHeight: 0.85, letterSpacing: "-0.04em",
           }}>{titleBottom}</h2>
 
@@ -302,7 +300,7 @@ export function HeroScrub({
         {immersedLines.length > 0 && (
           <div ref={linesRef} aria-hidden className="pointer-events-none absolute inset-0 z-30 grid place-items-center">
             {immersedLines.map((line) => (
-              <p key={line} className="display col-start-1 row-start-1 px-6 text-center opacity-0"
+              <p key={line} className="display col-start-1 row-start-1 px-6 text-center text-white opacity-0"
                 style={{ fontSize: "clamp(2rem, 6vw, 5.5rem)", textShadow: "0 6px 40px rgba(0,0,0,0.7)" }}>
                 {line}
               </p>

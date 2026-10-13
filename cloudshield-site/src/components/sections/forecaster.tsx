@@ -48,14 +48,14 @@ function Gauge({ pred, lo, hi, actual }: { pred: number; lo: number; hi: number;
   const ticks = [0, 1, 2, 3, 4, 5, 6, 7]
   return (
     <svg viewBox="0 0 320 185" className="w-full max-w-[420px]" role="img" aria-label={`Gauge: predicted ${bytes(pred)}`}>
-      <path d={arc(0, 1e7, r)} fill="none" stroke="rgba(160,220,255,0.12)" strokeWidth="14" strokeLinecap="round" />
+      <path d={arc(0, 1e7, r)} fill="none" stroke="rgba(22,20,15,0.12)" strokeWidth="14" strokeLinecap="round" />
       <path d={arc(0, pred, r)} fill="none" stroke="url(#g-fill)" strokeWidth="14" strokeLinecap="round" style={{ transition: 'all 0.6s' }} />
-      {hi > lo && <path d={arc(lo, hi, r + 16)} fill="none" stroke="#36e2d4" strokeOpacity="0.5" strokeWidth="4" strokeLinecap="round" />}
+      {hi > lo && <path d={arc(lo, hi, r + 16)} fill="none" stroke="#0f6e5a" strokeOpacity="0.5" strokeWidth="4" strokeLinecap="round" />}
       <defs>
         <linearGradient id="g-fill" x1="0" x2="1">
-          <stop offset="0%" stopColor="#36e2d4" />
-          <stop offset="70%" stopColor="#7aa2ff" />
-          <stop offset="100%" stopColor="#ff3b5c" />
+          <stop offset="0%" stopColor="#0f6e5a" />
+          <stop offset="70%" stopColor="#2f5d9e" />
+          <stop offset="100%" stopColor="#e5481c" />
         </linearGradient>
       </defs>
       {ticks.map((t) => {
@@ -63,8 +63,8 @@ function Gauge({ pred, lo, hi, actual }: { pred: number; lo: number; hi: number;
         const [x1, y1] = pt(v, r - 14), [x2, y2] = pt(v, r - 22), [tx, ty] = pt(v, r - 36)
         return (
           <g key={t}>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(234,242,245,0.35)" />
-            <text x={tx} y={ty} fill="rgba(234,242,245,0.45)" fontSize="9" textAnchor="middle" dominantBaseline="middle" fontFamily="JetBrains Mono">
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(22,20,15,0.35)" />
+            <text x={tx} y={ty} fill="rgba(22,20,15,0.45)" fontSize="9" textAnchor="middle" dominantBaseline="middle" fontFamily="JetBrains Mono">
               {['0', '10', '100', '1K', '10K', '100K', '1M', '10M'][t]}
             </text>
           </g>
@@ -72,13 +72,13 @@ function Gauge({ pred, lo, hi, actual }: { pred: number; lo: number; hi: number;
       })}
       {actual != null && (() => {
         const [x1, y1] = pt(actual, r + 10), [x2, y2] = pt(actual, r - 10)
-        return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#eaf2f5" strokeWidth="2.5" />
+        return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#16140f" strokeWidth="2.5" />
       })()}
       <g ref={needle}>
-        <line x1={cx} y1={cy} x2={cx + r - 30} y2={cy} stroke="#eaf2f5" strokeWidth="2" />
-        <circle cx={cx + r - 30} cy={cy} r="3" fill="#36e2d4" />
+        <line x1={cx} y1={cy} x2={cx + r - 30} y2={cy} stroke="#16140f" strokeWidth="2" />
+        <circle cx={cx + r - 30} cy={cy} r="3" fill="#0f6e5a" />
       </g>
-      <circle cx={cx} cy={cy} r="7" fill="#05080c" stroke="#36e2d4" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r="7" fill="#efeae0" stroke="#0f6e5a" strokeWidth="2" />
     </svg>
   )
 }
@@ -94,10 +94,10 @@ function Sweep({ sweep, at, home }: { sweep: [number, number, number][]; at: num
     sweep.map((_, i) => `L${x(n - 1 - i)} ${y(sweep[n - 1 - i][1])}`).join('') + 'Z'
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" aria-hidden>
-      <path d={band} fill="#36e2d4" fillOpacity="0.1" />
-      <path d={line} fill="none" stroke="#36e2d4" strokeWidth="1.6" />
-      <line x1={x(home)} x2={x(home)} y1={6} y2={h - 6} stroke="rgba(234,242,245,0.3)" strokeDasharray="2 3" />
-      <circle cx={x(at)} cy={y(sweep[at][0])} r="4.5" fill="#05080c" stroke="#eaf2f5" strokeWidth="2" style={{ transition: 'cx 0.3s, cy 0.3s' }} />
+      <path d={band} fill="#0f6e5a" fillOpacity="0.1" />
+      <path d={line} fill="none" stroke="#0f6e5a" strokeWidth="1.6" />
+      <line x1={x(home)} x2={x(home)} y1={6} y2={h - 6} stroke="rgba(22,20,15,0.3)" strokeDasharray="2 3" />
+      <circle cx={x(at)} cy={y(sweep[at][0])} r="4.5" fill="#efeae0" stroke="#16140f" strokeWidth="2" style={{ transition: 'cx 0.3s, cy 0.3s' }} />
     </svg>
   )
 }
@@ -117,8 +117,8 @@ export function Forecaster() {
   return (
     <Chapter
       id="forecaster"
-      index="04"
-      eyebrow={`Regression · ${R.best}`}
+      index="08"
+      eyebrow={`Regression · ${D.overview.dataset.name} · ${R.best}`}
       title={<>How much<br />comes back?</>}
       deck={<>Before a response finishes, can we say how big it will be? A {R.best} of 200 trees predicts the bytes a flow returns from {R.features} other statistics. On {int(D.classification.testRows)} unseen flows: R² {best.r2.toFixed(4)}, typical error {int(best.mae)} bytes.</>}
     >
@@ -126,7 +126,7 @@ export function Forecaster() {
         {FLOWS.map((f, i) => (
           <button key={f.id} type="button" onClick={() => setIdx(i)}
             className={cn('grid shrink-0 gap-1 rounded-xl border px-4 py-3 text-left transition',
-              i === idx ? 'border-cyan bg-cyan/[0.06]' : 'border-hairline-strong hover:border-ink-dim')}>
+              i === idx ? 'border-signal bg-signal/[0.06]' : 'border-hairline-strong hover:border-ink-dim')}>
             <span className="num text-sm text-ink">{bytes(f.actual)}</span>
             <span className="flex items-center gap-1.5 text-[0.7rem] text-ink-muted">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: CLASS_COLOR[f.label] }} />
@@ -142,7 +142,7 @@ export function Forecaster() {
           <div className="grid w-full gap-6 sm:grid-cols-2">
             <div className="grid gap-1">
               <span className="eyebrow">{home ? 'Predicted' : 'What-if prediction'}</span>
-              <Counter value={p} format={fmt} className="num text-[clamp(2.4rem,5vw,3.6rem)] font-medium leading-none text-cyan glow-cyan" />
+              <Counter value={p} format={fmt} className="num text-[clamp(2.4rem,5vw,3.6rem)] font-medium leading-none text-signal" />
               <span className="num text-xs text-ink-dim">trees agree on {bytes(lo)} to {bytes(hi)} (10th to 90th percentile)</span>
             </div>
             <div className="grid gap-1 sm:text-right">

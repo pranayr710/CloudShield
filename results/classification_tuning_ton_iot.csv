@@ -1,0 +1,10 @@
+Model,searched,best,CV F1 (w),configs tried,time (s)
+Logistic Regression,"{'C': [0.1, 1, 10]}",{'C': 10},0.9438033994084494,3,34.369558811187744
+K-Nearest Neighbors,"{'n_neighbors': [3, 5, 9, 15], 'weights': ['uniform', 'distance'], 'p': [1, 2]}","{'n_neighbors': 5, 'p': 1, 'weights': 'distance'}",0.9783156934427607,16,24.938377380371094
+Decision Tree,"{'max_depth': [8, 15, 25, None], 'min_samples_leaf': [1, 3]}","{'max_depth': 25, 'min_samples_leaf': 1}",0.9848204301095667,8,17.077468156814575
+SVC,"[{'kernel': ['rbf'], 'C': [1, 10, 50], 'gamma': ['scale', 0.05]}, {'kernel': ['poly'], 'C': [1, 10], 'degree': [2]}, {'kernel': ['linear'], 'C': [1]}]","{'C': 50, 'gamma': 0.05, 'kernel': 'rbf'}",0.9560477498900449,9,9.550374031066895
+Random Forest,"{'n_estimators': [100, 200, 400], 'max_features': ['sqrt', 0.3]}","{'max_features': 0.3, 'n_estimators': 100}",0.9797737587482288,6,13.366499662399292
+AdaBoost,"{'n_estimators': [50, 150, 300], 'learning_rate': [0.1, 0.5, 1.0]}","{'learning_rate': 0.5, 'n_estimators': 300}",0.9529781034814088,9,150.94883370399475
+Gradient Boosting,"{'learning_rate': [0.05, 0.1, 0.2], 'max_iter': [200, 400]}","{'learning_rate': 0.05, 'max_iter': 200}",0.9790783419392808,6,39.90319895744324
+Bagging,"{'n_estimators': [50, 100], 'max_features': [0.5, 0.8]}","{'max_features': 0.5, 'n_estimators': 100}",0.9810700559117462,4,8.522572755813599
+MLP,"{'hidden_layer_sizes': [(64,), (128, 64)], 'activation': ['relu', 'tanh']}","{'activation': 'tanh', 'hidden_layer_sizes': (128, 64)}",0.966396192900354,4,46.1296489238739

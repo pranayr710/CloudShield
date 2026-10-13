@@ -1,24 +1,23 @@
 import { useRef } from 'react'
 import { gsap, ScrollTrigger, useGSAP, prefersReducedMotion } from '@/lib/gsap'
-import { D, int, pct } from '@/lib/data'
+import { D, T, int, pct } from '@/lib/data'
 
-const { overview: O, classification: C, regression: R } = D
-const bestCls = C.models.find((m) => m.model === C.best) ?? C.models[0]
-const bestReg = R.models[0]
+const C = T.classification
+const best = C.models[0]
 
-const ITEMS: [string, string, 'cyan' | 'red'][] = [
-  ['Network flows', int(O.rows), 'cyan'],
-  ['Attack share', pct(O.attackShare, 1), 'red'],
-  ['Duplicates removed', pct(O.duplicateShare, 1), 'cyan'],
-  ['Class imbalance', `${O.imbalance} : 1`, 'red'],
-  [`${C.best} accuracy`, pct(bestCls.acc, 1), 'cyan'],
-  ['Normal traffic recall', pct(C.perClass.find((p) => p.name === 'Normal')!.recall, 1), 'cyan'],
-  ['Worms recall', pct(C.perClass.find((p) => p.name === 'Worms')!.recall, 1), 'red'],
-  [`${bestReg.model} R²`, bestReg.r2.toFixed(4), 'cyan'],
-  ['Typical byte error', `${int(bestReg.mae)} B`, 'cyan'],
+const ITEMS: [string, string][] = [
+  ['TON_IoT flows', int(T.overview.rows)],
+  ['Attack share', pct(T.overview.attackShare, 1)],
+  ['Classifiers compared', String(C.models.length)],
+  [`${C.best} accuracy`, pct(C.final.acc, 2)],
+  ['Weighted F1', best.f1w.toFixed(4)],
+  ['MITM recall', pct(C.recall.mitm, 1)],
+  ['On unseen machines', pct(C.stress.acc, 1)],
+  ['Traffic clusters', String(T.clustering.k)],
+  [`Regression R² (${D.overview.dataset.name})`, D.regression.models[0].r2.toFixed(4)],
 ]
 
-/** A SOC-screen ticker of findings. Its speed and lean follow how fast the page is scrolled. */
+/** A news-wire ticker of findings. Its speed and lean follow how fast the page is scrolled. */
 export function Ticker() {
   const root = useRef<HTMLDivElement>(null)
   const track = useRef<HTMLDivElement>(null)
@@ -43,16 +42,16 @@ export function Ticker() {
     { scope: root },
   )
 
-  const row = ITEMS.map(([k, v, tone]) => (
+  const row = ITEMS.map(([k, v]) => (
     <span key={k} className="flex shrink-0 items-center gap-4 pr-12">
-      <span className={`h-1.5 w-1.5 rounded-full ${tone === 'red' ? 'bg-red shadow-[0_0_10px_#ff3b5c]' : 'bg-cyan shadow-[0_0_10px_#36e2d4]'}`} />
-      <span className="eyebrow text-ink-muted">{k}</span>
+      <span className="h-2 w-2 rotate-45 bg-red" />
+      <span className="eyebrow">{k}</span>
       <span className="num text-[1.3rem] font-medium text-ink">{v}</span>
     </span>
   ))
 
   return (
-    <div ref={root} className="overflow-hidden border-y border-hairline-strong bg-panel py-5" aria-label="Key findings">
+    <div ref={root} className="screen overflow-hidden py-5" aria-label="Key findings">
       <div ref={track} className="flex w-max will-change-transform">
         <div className="flex">{row}</div>
         <div className="flex" aria-hidden>{row}</div>

@@ -1,6 +1,11 @@
 import raw from '@/data/cloudshield.json'
+import tonRaw from '@/data/toniot.json'
 
-/** Everything the site shows comes from src/data/cloudshield.json, written by scripts/export_data.py. */
+/**
+ * Everything the site shows comes from two exported files:
+ * - src/data/cloudshield.json (UNSW-NB15, regression track), written by scripts/export_data.py
+ * - src/data/toniot.json (TON_IoT, classification and clustering), written by scripts/export_ton_iot.py
+ */
 
 export type FlowFields = {
   proto: string; service: string; state: string
@@ -100,18 +105,18 @@ export function bytes(v: number, digits = 1) {
   return `${x.toFixed(x < 10 ? digits + 1 : digits)} ${units[i]}`
 }
 
-/** One colour per traffic class. Normal is the network's own cyan; attacks run warm. */
+/** One colour per UNSW-NB15 class (regression track). Normal is green; attacks run warm. */
 export const CLASS_COLOR: Record<string, string> = {
-  Normal: '#36e2d4',
-  Generic: '#7aa2ff',
-  Exploits: '#ff3b5c',
-  Fuzzers: '#ffb547',
-  DoS: '#ff7a3d',
-  Reconnaissance: '#c38bff',
-  Analysis: '#f2e46b',
-  Backdoor: '#ff6fb5',
-  Shellcode: '#5fd38d',
-  Worms: '#f4f4f4',
+  Normal: '#0f6e5a',
+  Generic: '#2f5d9e',
+  Exploits: '#e5481c',
+  Fuzzers: '#c98a00',
+  DoS: '#f08a24',
+  Reconnaissance: '#7b3fa0',
+  Analysis: '#8a7a2e',
+  Backdoor: '#c2185b',
+  Shellcode: '#2e7d32',
+  Worms: '#4a4a4a',
 }
 
 export const CLASS_NOTE: Record<string, string> = {
@@ -127,4 +132,81 @@ export const CLASS_NOTE: Record<string, string> = {
   Worms: 'Copies itself to spread to other computers.',
 }
 
-export const CLUSTER_COLOR = ['#36e2d4', '#7aa2ff', '#ffb547', '#ff3b5c', '#c38bff', '#5fd38d', '#ff6fb5', '#f2e46b', '#ff7a3d', '#f4f4f4']
+export const CLUSTER_COLOR = ['#e5481c', '#2f5d9e', '#0f6e5a', '#c98a00', '#7b3fa0', '#c2185b', '#00838f', '#5b4636', '#8a7a2e', '#4a4a4a']
+
+/* ------------------------------------------------------------------ TON_IoT (classification + clustering) */
+export type TonFields = {
+  proto: string; service: string; conn_state: string; duration: number
+  src_bytes: number; dst_bytes: number; src_pkts: number; dst_pkts: number; dst_port: number
+}
+export type TonFlow = { id: number; label: string; pred: string; proba: { name: string; p: number }[]; f: TonFields }
+export type TonModel = {
+  model: string; part: 'A' | 'B'; acc: number; precision: number; recall: number; f1w: number; f1m: number; auc: number
+  fit: number; trainRows: number; params: string; cvTune: number | null; tried: number
+}
+
+export type TonData = {
+  overview: {
+    name: string; file: string; source: string; citation: string; url: string
+    rows: number; rowsClean: number; duplicates: number; columns: number; machines: number; attackShare: number
+    classes: { name: string; count: number; machines: number }[]
+  }
+  classification: {
+    best: string
+    order: string[]
+    models: TonModel[]
+    final: { name: string; acc: number; stages: { stage: string; acc: number; f1w: number; f1m: number; auc: number }[] }
+    cv: { model: string; mean: number; std: number; folds: number[] }[]
+    confusion: { labels: string[]; counts: number[][]; norm: number[][] }
+    recall: Record<string, number>
+    stress: { acc: number; f1w: number; f1m: number; classes: string[] }
+    trainRows: number; testRows: number; features: number
+    lab: TonFlow[]
+    stream: TonFlow[]
+    /** 5 test flows per class, including some the model gets wrong */
+    quiz: TonFlow[]
+    /** [P(attack) from the final model, class index in `order`]; uncertain flows oversampled */
+    firewall: { flows: [number, number][]; hardShare: number; unsureShareTest: number }
+  }
+  clustering: {
+    sample: number; k: number
+    elbow: { k: number; inertia: number; silhouette: number }[]
+    linkages: { linkage: string; silhouette: number; largest: number }[]
+    metrics: { name: string; silhouette: number; daviesBouldin: number; calinskiHarabasz: number }[]
+    stability: { silhouette: [number, number]; ari: [number, number] | null }
+    pcaVariance: number[]
+    clusters: { id: number; size: number; mix: { name: string; share: number }[] }[]
+    points: [number, number, number, number][]
+  }
+}
+
+export const T = tonRaw as unknown as TonData
+
+/** One colour per TON_IoT class. Normal is green; attacks are distinct inks that print well on paper. */
+export const TON_COLOR: Record<string, string> = {
+  normal: '#0f6e5a',
+  scanning: '#2f5d9e',
+  ddos: '#e5481c',
+  dos: '#f08a24',
+  injection: '#7b3fa0',
+  password: '#c2185b',
+  backdoor: '#5b4636',
+  xss: '#b8930a',
+  ransomware: '#16140f',
+  mitm: '#00838f',
+}
+
+export const TON_NOTE: Record<string, string> = {
+  normal: 'Ordinary IoT and IT traffic on the testbed.',
+  scanning: 'Probing hosts and ports to map the network before an attack.',
+  ddos: 'Many machines flooding one target until it stops answering.',
+  dos: 'One machine flooding a target to exhaust its resources.',
+  injection: 'Smuggling commands or SQL into an input a service trusts.',
+  password: 'Guessing or cracking credentials, for example by brute force.',
+  backdoor: 'A hidden channel left behind for remote access later.',
+  xss: 'Cross-site scripting: injecting script into a web page other users load.',
+  ransomware: 'Malware that encrypts files and demands payment.',
+  mitm: 'Man-in-the-middle: secretly relaying or altering traffic between two parties.',
+}
+
+export const tonLabel = (c: string) => (c === 'ddos' ? 'DDoS' : c === 'dos' ? 'DoS' : c === 'xss' ? 'XSS' : c === 'mitm' ? 'MITM' : c[0].toUpperCase() + c.slice(1))

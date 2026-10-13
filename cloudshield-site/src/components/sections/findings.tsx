@@ -2,19 +2,29 @@ import { useRef } from 'react'
 import { Chapter } from '@/components/chapter'
 import { Video } from '@/components/video'
 import { gsap, SplitText, useGSAP, prefersReducedMotion } from '@/lib/gsap'
-import { D, int, pct } from '@/lib/data'
+import { D, T, int, pct, tonLabel } from '@/lib/data'
 
-const { classification: C, regression: R, clustering: K } = D
-const recall = (n: string) => C.perClass.find((p) => p.name === n)!.recall
-const poly = R.models.find((m) => m.model.startsWith('Polynomial'))!
-const generic = K.clusters.map((c) => ({ c, g: c.mix.find((m) => m.name === 'Generic')?.share ?? 0 })).sort((a, b) => b.g - a.g)[0]
+const C = T.classification
+const K = T.clustering
+const gnb = C.models.find((m) => m.model === 'Gaussian NB')!
+const ensembles = C.models.filter((m) => ['Gradient Boosting', 'Bagging', 'Random Forest'].includes(m.model))
+const normalCluster = [...K.clusters].filter((c) => c.size >= 50)
+  .map((c) => ({ c, n: c.mix.find((m) => m.name === 'normal')?.share ?? 0 })).sort((a, b) => b.n - a.n)[0]
+const mitm = T.overview.classes.find((c) => c.name === 'mitm')!
 
 const FINDINGS: [string, string, string][] = [
-  [R.models[0].r2.toFixed(4), 'Response size is predictable', `A ${R.best} forecasts the bytes a flow sends back with a typical error of ${int(R.models[0].mae)} bytes, without seeing any column that is a formula of the answer.`],
-  [`${pct(recall('Normal'))} vs ${pct(recall('Worms'))}`, 'Common is easy, rare is hard', `Normal traffic is recognised ${pct(recall('Normal'), 1)} of the time, Worms ${pct(recall('Worms'), 1)}. With ${D.overview.imbalance} Normal flows per Worm, there is little to learn from.`],
-  ['5 of 5', 'Every model fails the same way', 'All five classifiers, built on very different ideas, confuse the same rare families with Exploits and DoS. That is a property of the flow statistics, not of any one algorithm.'],
-  [`${poly.r2Val.toFixed(3)} → ${poly.r2.toFixed(3)}`, 'Only a holdout catches overfitting', 'The degree-2 polynomial looked strong on validation and dropped on the untouched test set. Without that last check we would have trusted it.'],
-  [pct(generic.g), 'Some attacks have one signature', `Without labels, K-Means put Generic attacks into a cluster of their own (${pct(generic.g)} pure). Generic flows are near-identical, which is also why ${pct(D.overview.duplicateShare)} of the data is duplicates.`],
+  [pct(C.final.acc, 2), 'Attacks can be named from the flow alone',
+    `A tuned ${C.best} labels ${int(C.testRows)} unseen flows into ten classes with weighted F1 ${C.models[0].f1w.toFixed(4)}, without IP addresses, ports or the label column.`],
+  [`${Math.min(...ensembles.map((e) => e.f1w)).toFixed(3)}+`, 'Ensembles of trees lead',
+    `Gradient Boosting, Bagging and Random Forest all reach weighted F1 above ${Math.min(...ensembles.map((e) => e.f1w)).toFixed(3)}. Gaussian NB, which assumes features are independent, manages ${gnb.f1w.toFixed(3)}.`],
+  [pct(C.recall.mitm, 1), 'The rarest attack is the hardest',
+    `Man-in-the-middle has ${int(mitm.count)} flows, about ${pct(mitm.count / T.overview.rowsClean, 1)} of the data. It is the only class the final model recalls less than 90% of the time.`],
+  [`${pct(C.final.acc, 0)} → ${pct(C.stress.acc, 0)}`, 'New machines are a harder exam',
+    `Tested on source machines it never trained on, the same configuration drops to ${pct(C.stress.acc, 1)} accuracy. Each attack came from only a few hosts, so a deployment would need retraining on its own network.`],
+  [String(K.k), 'Behaviour groups without labels',
+    `K-Means finds ${K.k} clusters that are stable across resamples (ARI ${K.stability.ari?.[0].toFixed(2)}). One is ${pct(normalCluster.n)} ${tonLabel('normal').toLowerCase()} traffic; the others mix attack families.`],
+  [D.regression.models[0].r2.toFixed(4), 'Reply size is predictable',
+    `On ${D.overview.dataset.name}, a ${D.regression.best} forecasts the bytes a flow sends back with R² ${D.regression.models[0].r2.toFixed(4)} and a typical error of ${int(D.regression.models[0].mae)} bytes.`],
 ]
 
 function Finale() {
@@ -35,15 +45,15 @@ function Finale() {
   }, { scope: root })
 
   return (
-    <section ref={root} className="relative grid h-[100svh] place-items-center overflow-hidden" aria-label="Closing">
+    <section ref={root} className="screen relative grid h-[100svh] place-items-center overflow-hidden" aria-label="Closing">
       <div data-video className="absolute inset-0">
         <Video video="shield" cover />
       </div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(5,8,12,0.25)_0%,rgba(5,8,12,0.9)_75%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(21,19,15,0.25)_0%,rgba(21,19,15,0.9)_75%)]" />
       <div className="relative grid justify-items-center gap-6 px-6 text-center">
         <span className="eyebrow">Thank you</span>
-        <h2 ref={title} className="display text-[clamp(2.6rem,10vw,8.5rem)] leading-none">
-          Cloud<span className="text-cyan glow-cyan">Shield</span>
+        <h2 ref={title} className="display text-[clamp(2.6rem,10vw,8.5rem)] leading-none text-ink">
+          Cloud<span className="text-red">Shield</span>
         </h2>
         <p className="max-w-[40ch] font-serif text-[clamp(1.3rem,2.4vw,1.9rem)] italic text-ink-muted">Questions are welcome.</p>
       </div>
@@ -54,22 +64,18 @@ function Finale() {
 export function Findings() {
   return (
     <>
-      <Chapter id="findings" index="08" eyebrow="What we learned" title={<>Five things<br />the data said</>}>
+      <Chapter id="findings" index="10" eyebrow="What the data said" title={<>Six findings,<br />three tracks</>}>
         <ol className="grid gap-px overflow-hidden rounded-2xl border border-hairline-strong bg-hairline-strong md:grid-cols-2 lg:grid-cols-3">
           {FINDINGS.map(([value, head, body], i) => (
-            <li key={head} className="group grid content-start gap-4 bg-panel p-6 transition-colors hover:bg-panel-2 md:p-8">
+            <li key={head} className="grain group grid content-start gap-4 bg-panel p-6 transition-colors hover:bg-paper md:p-8">
               <div className="flex items-baseline justify-between gap-4">
-                <span className="num text-sm text-ink-dim">0{i + 1}</span>
-                <span className="num text-right text-[clamp(1.4rem,2.4vw,2rem)] font-medium text-cyan transition group-hover:[text-shadow:0_0_28px_rgba(54,226,212,0.45)]">{value}</span>
+                <span className="font-serif text-3xl italic text-red">{i + 1}</span>
+                <span className="num text-right text-[clamp(1.3rem,2.2vw,1.9rem)] font-medium">{value}</span>
               </div>
               <h3 className="text-lg font-semibold">{head}</h3>
               <p className="text-sm leading-relaxed text-ink-muted">{body}</p>
             </li>
           ))}
-          <li className="relative grid min-h-[220px] content-end overflow-hidden bg-[#03060a] p-6 md:p-8">
-            <Video video="fibre" cover className="opacity-70" />
-            <span className="relative eyebrow text-ink">Next: the Review 2 dataset</span>
-          </li>
         </ol>
       </Chapter>
       <Finale />
