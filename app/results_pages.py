@@ -16,7 +16,7 @@ RES, REP = ROOT / "results", ROOT / "reports"
 SITE = ROOT / "cloudshield-site" / "src" / "data"
 LABEL = {"ddos": "DDoS", "dos": "DoS", "xss": "XSS", "mitm": "MITM"}
 name = lambda c: LABEL.get(c, c.capitalize())  # noqa: E731
-SHOW_CV5 = False  # 5-fold CV results are left out for now; set True to show them
+SHOW_CV5 = True  # set False to leave the 5-fold CV results out
 PART_A = {"Logistic Regression", "K-Nearest Neighbors", "Gaussian NB", "Decision Tree", "SVC (RBF)"}
 
 PAGES = ["Live predictions", "Overview", "Classification", "Clustering", "Regression", "Reports and downloads"]
@@ -75,11 +75,13 @@ def classification() -> None:
         f"{C['trainMachines']} machines and tested on {C['testRows']:,} flows from {C['testMachines']} machines never seen in training "
         f"(StratifiedGroupKFold grouped by source IP)."
     )
-    board = pd.DataFrame(C["models"]).rename(columns={"model": "Model", "acc": "Accuracy", "f1w": "Weighted F1", "f1m": "Macro F1", "params": "Settings"})
+    board = pd.DataFrame(C["models"]).rename(columns={"model": "Model", "acc": "Accuracy", "f1w": "Weighted F1", "f1m": "Macro F1", "params": "Settings",
+                                                      "precision": "Precision (w)", "recall": "Recall (w)", "auc": "ROC-AUC (OvR)"})
     board.insert(1, "Part", ["A" if k in PART_A else "B" for k in board["key"]])
     st.subheader("All models on the same test set")
-    st.dataframe(board[["Model", "Part", "Accuracy", "Weighted F1", "Macro F1", "Settings"]], hide_index=True, use_container_width=True,
-                 column_config={k: st.column_config.ProgressColumn(format="%.4f", min_value=0.0, max_value=1.0) for k in ("Accuracy", "Weighted F1", "Macro F1")})
+    metric_cols = [c for c in ("Accuracy", "Precision (w)", "Recall (w)", "Weighted F1", "Macro F1", "ROC-AUC (OvR)") if c in board and board[c].notna().all()]
+    st.dataframe(board[["Model", "Part", *metric_cols, "Settings"]], hide_index=True, use_container_width=True,
+                 column_config={k: st.column_config.ProgressColumn(format="%.4f", min_value=0.0, max_value=1.0) for k in metric_cols})
 
     st.subheader("Final model: Gradient Boosting (tuned)")
     f = C["final"]
