@@ -121,6 +121,7 @@ models = [{
     "model": DISPLAY.get(row["Model"], row["Model"]), "key": row["Model"],
     "part": "A" if row["Model"] in PART_A else "B", "tuned": "(tuned)" in row["Model"],
     "acc": r(row["Accuracy test"]), "f1w": r(row["F1w test"]), "f1m": r(row["F1m test"]), "params": PARAMS.get(row["Model"], ""),
+    "precision": r(row.get("Precision test")), "recall": r(row.get("Recall test")), "auc": r(row.get("ROC-AUC test")),
 } for _, row in board.sort_values("F1w test", ascending=False).iterrows()]
 pc_p = precision_score(y_te, pred, labels=test_classes, average=None, zero_division=0)
 pc_r = recall_score(y_te, pred, labels=test_classes, average=None, zero_division=0)
@@ -166,11 +167,12 @@ firewall = {"flows": [[r(p_attack[i], 3), order_all.index(y_te[i])] for i in fw_
             "hardShare": r(len(hard) / len(fw_idx), 3), "unsureShareTest": r(len(unsure) / len(y_te), 4),
             "oversampled": bool(len(unsure) / len(y_te) < 0.2)}
 
-SHOW_CV5 = False  # 5-fold CV results are left off the site for now; set True to show them
+SHOW_CV5 = True  # set False to leave the 5-fold CV results off the site
 cv_path = RES / "classification_cv5_top2.csv"
-cv5 = [{"model": row["Model"], "mean": r(row["CV F1w mean"]), "std": r(row["CV F1w std"]), "f1m": r(row["CV F1m mean"]),
+cv5 = [{"model": row["Model"], "kind": kind, "mean": r(row["CV F1w mean"]), "std": r(row["CV F1w std"]), "f1m": r(row["CV F1m mean"]),
         "acc": r(row["CV Acc mean"]), "folds": [float(x) for x in str(row["F1w per fold"]).strip("[]").split(",")]}
-       for _, row in pd.read_csv(cv_path).iterrows()] if SHOW_CV5 and cv_path.exists() else []
+       for kind, path in (("grouped", cv_path), ("stratified", RES / "classification_cv5_top2_stratified.csv"))
+       if SHOW_CV5 and path.exists() for _, row in pd.read_csv(path).iterrows()]
 grid_path = RES / "tuning_grid_ton_iot.json"
 tuning = json.loads(grid_path.read_text()) if grid_path.exists() else None
 

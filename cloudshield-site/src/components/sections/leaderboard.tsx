@@ -6,20 +6,25 @@ import { cn } from '@/lib/utils'
 
 const C = T.classification
 
-type Metric = 'f1w' | 'f1m' | 'acc'
+type Metric = 'f1w' | 'f1m' | 'acc' | 'precision' | 'recall' | 'auc'
 const METRICS: { key: Metric; label: string; hint: string }[] = [
   { key: 'f1w', label: 'Weighted F1', hint: 'F1 per class, averaged by class size. The headline metric.' },
   { key: 'f1m', label: 'Macro F1', hint: 'Every class counts equally, so the weak DoS class pulls it down.' },
   { key: 'acc', label: 'Accuracy', hint: 'Share of the test flows labelled correctly.' },
+  { key: 'precision', label: 'Precision', hint: 'Of the flows given a class, how many really were that class (weighted by class size).' },
+  { key: 'recall', label: 'Recall', hint: 'Of the flows in a class, how many were found (weighted by class size).' },
+  { key: 'auc', label: 'ROC-AUC', hint: 'One-vs-rest, averaged over the classes in the test fold: how well the scores rank each class above the rest.' },
 ]
 const ROW = 42
+const val = (r: TonModel, k: Metric) => r[k] ?? 0
+const HAS = (k: Metric) => C.models.every((m) => m[k] != null)
 
 /** Bars that race out on scroll and re-rank themselves when the metric changes. */
 function Race() {
   const root = useRef<HTMLDivElement>(null)
   const [metric, setMetric] = useState<Metric>('f1w')
   const m = METRICS.find((x) => x.key === metric)!
-  const ranked = useMemo(() => [...C.models].sort((a, b) => b[metric] - a[metric]), [metric])
+  const ranked = useMemo(() => [...C.models].sort((a, b) => val(b, metric) - val(a, metric)), [metric])
   const rank = (key: string) => ranked.findIndex((r) => r.key === key)
 
   useGSAP(() => {
@@ -34,7 +39,7 @@ function Race() {
     <div ref={root} className="grain grid content-start gap-6 rounded-2xl border border-hairline-strong bg-panel p-5 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 rounded-full border border-hairline-strong bg-paper p-1" role="tablist">
-          {METRICS.map((x) => (
+          {METRICS.filter((x) => HAS(x.key)).map((x) => (
             <button key={x.key} type="button" role="tab" aria-selected={metric === x.key} onClick={() => setMetric(x.key)}
               className={cn('rounded-full px-3 py-1.5 text-xs font-medium transition', metric === x.key ? 'bg-ink text-paper' : 'text-ink-muted hover:text-ink')}>
               {x.label}
@@ -58,9 +63,9 @@ function Race() {
               </span>
               <span className="relative h-5 overflow-hidden rounded-sm bg-panel-2">
                 <span data-fill className={cn('absolute inset-y-0 left-0 origin-left transition-[width] duration-700', final ? 'bg-red' : r.tuned ? 'bg-amber' : r.part === 'A' ? 'bg-ink/45' : 'bg-ink/80')}
-                  style={{ width: `${Math.max(1, r[metric] * 100)}%` }} />
+                  style={{ width: `${Math.max(1, val(r, metric) * 100)}%` }} />
               </span>
-              <span className="num text-right text-sm">{r[metric].toFixed(4)}</span>
+              <span className="num text-right text-sm">{val(r, metric).toFixed(4)}</span>
             </div>
           )
         })}
@@ -93,7 +98,7 @@ function ModelCard({ r, rankNo }: { r: TonModel; rankNo: number }) {
       </div>
       <p className="num border-t border-dashed border-hairline-strong pt-3 text-xs text-ink-muted">{r.params}</p>
       <div className="num flex justify-between gap-3 text-[0.7rem] text-ink-dim">
-        <span>macro F1 {r.f1m.toFixed(3)}</span><span>accuracy {r.acc.toFixed(3)}</span>
+        <span>macro F1 {r.f1m.toFixed(3)}</span><span>accuracy {r.acc.toFixed(3)}</span>{r.auc != null && <span>AUC {r.auc.toFixed(3)}</span>}
       </div>
     </article>
   )
@@ -160,26 +165,26 @@ function Folds() {
   return (
     <div className="grain grid content-start gap-5 rounded-2xl border border-hairline-strong bg-panel p-6 md:p-8 lg:col-span-2">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="eyebrow">5-fold cross-validation of the top two · grouped by source machine</span>
-        <span className="text-xs text-ink-dim">training set only; each fold validates on machines its training folds never saw</span>
+        <span className="eyebrow">5-fold cross-validation of the top two · training set only</span>
+        <span className="text-xs text-ink-dim">grouped: each fold validates on machines its training folds never saw · stratified: folds share machines</span>
       </div>
       {C.cv5.map((c, k) => (
         <div key={c.model} className="grid gap-2">
           <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
-            <span className={k === 0 ? 'font-semibold' : 'text-ink-muted'}>{c.model}</span>
+            <span className={k === 0 ? 'font-semibold' : 'text-ink-muted'}>{c.model} <span className="chip ml-1">{c.kind}</span></span>
             <span className="num">weighted F1 {c.mean.toFixed(4)} <span className="text-ink-dim">± {c.std.toFixed(4)} · macro F1 {c.f1m.toFixed(3)} · accuracy {c.acc.toFixed(3)}</span></span>
           </div>
           <div className="relative h-8 rounded-sm bg-panel-2">
             <span className="absolute inset-y-1 w-px bg-ink/40" style={{ left: x(c.mean) }} />
             {c.folds.map((f, i) => (
-              <span key={i} title={`fold ${i + 1}: ${f}`} className={cn('num absolute top-1/2 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-paper text-[0.55rem] text-paper', k === 0 ? 'bg-red' : 'bg-ink')}
+              <span key={i} title={`fold ${i + 1}: ${f}`} className={cn('num absolute top-1/2 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-paper text-[0.55rem] text-paper', c.kind === 'grouped' ? 'bg-red' : 'bg-signal')}
                 style={{ left: x(f) }}>{i + 1}</span>
             ))}
           </div>
         </div>
       ))}
       <div className="num flex justify-between text-[0.65rem] text-ink-dim"><span>{lo.toFixed(2)}</span><span>weighted F1 per fold</span><span>{hi.toFixed(2)}</span></div>
-      <p className="text-xs leading-relaxed text-ink-dim">Each numbered dot is one fold. The spread shows how much the score depends on which machines happen to be held out.</p>
+      <p className="text-xs leading-relaxed text-ink-dim">Each numbered dot is one fold. Grouped folds that hold every machine of an attack type never train on it, and their score collapses; stratified folds share machines, so they stay high and hide that risk.</p>
     </div>
   )
 }

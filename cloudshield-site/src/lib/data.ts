@@ -143,6 +143,7 @@ export type TonFlow = { id: number; label: string; pred: string; proba: { name: 
 export type TonModel = {
   model: string; key: string; part: 'A' | 'B'; tuned: boolean
   acc: number; f1w: number; f1m: number; params: string
+  precision: number | null; recall: number | null; auc: number | null
 }
 export type TuneRow = { n_estimators: number; learning_rate: number; max_depth: number; cv: number; cvStd: number; test: number; testAcc: number }
 
@@ -174,7 +175,7 @@ export type TonData = {
     /** [P(attack) from the final model, class index in `allClasses`]; uncertain flows oversampled */
     firewall: { flows: [number, number][]; hardShare: number; unsureShareTest: number; oversampled: boolean }
     /** 5-fold CV grouped by source machine, training set only */
-    cv5: { model: string; mean: number; std: number; f1m: number; acc: number; folds: number[] }[]
+    cv5: { model: string; kind: 'grouped' | 'stratified'; mean: number; std: number; f1m: number; acc: number; folds: number[] }[]
     tuning: { sampleRows: number; grid: TuneRow[] } | null
   }
   clustering: {
