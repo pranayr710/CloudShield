@@ -44,26 +44,37 @@ Two partition files, 45 columns, 257,673 flows. The regression target is `dbytes
 
 ### Classification: all algorithms & tuned configurations (TON_IoT)
 
-Evaluated using `StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)` grouped by `src_ip`. All flows from a given host machine belong exclusively to either train or test, enforcing zero machine-identifier leakage and evaluating true cross-machine attack generalization on unseen systems.
+Evaluated using `StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)` grouped by `src_ip`. All flows from a given source machine belong to either train or test, never both, so the test score measures how the model does on machines it has never seen.
 
-| Rank | Model | Part | Accuracy (test) | F1 (weighted) | F1 (macro) | Notes / Tuned Settings |
-|---|---|---|---|---|---|---|
-| 1 | **GBC (tuned)** | B | **0.8365** | **0.8742** | **0.5345** | `learning_rate=0.05, max_depth=5, n_estimators=100, subsample=0.8` |
-| 2 | Gradient Boosting (base) | B | 0.7578 | 0.7530 | 0.5207 | `n_estimators=100, learning_rate=0.1, max_depth=3` |
-| 3 | Bagging (tuned) | B | 0.7232 | 0.7302 | 0.4882 | `n_estimators=200, max_samples=0.7, max_features=0.2, DT max_depth=30` |
-| 4 | Bagging (base) | B | 0.7267 | 0.6921 | 0.4620 | `n_estimators=100, max_features=0.3, DT base` |
-| 5 | SVC (RBF) | A | 0.6781 | 0.6399 | 0.4754 | `kernel='rbf', C=1.0, class_weight='balanced'` |
-| 6 | Random Forest | B | 0.6668 | 0.6059 | 0.4065 | `n_estimators=100, random_state=42` |
-| 7 | Neural Network (MLP) | B | 0.6603 | 0.6213 | 0.4055 | `hidden_layer_sizes=(100, 50), relu, adam, max_iter=300` |
-| 8 | Logistic Regression | A | 0.6443 | 0.6135 | 0.3967 | `C=1.0, class_weight='balanced', max_iter=3000` |
-| 9 | AdaBoost | B | 0.6411 | 0.6650 | 0.4520 | `n_estimators=100, learning_rate=1.0, depth-3 tree base` |
-| 10 | Decision Tree | A | 0.6298 | 0.6239 | 0.4103 | `class_weight='balanced', max_depth=None` |
-| 11 | K-Nearest Neighbors | A | 0.5993 | 0.6197 | 0.4061 | `k=5, weights='distance'` |
-| 12 | Gaussian Naive Bayes | A | 0.2964 | 0.3959 | 0.2453 | independence assumption violated |
+| Rank | Model | Part | Accuracy | Precision (w) | Recall (w) | F1 (weighted) | F1 (macro) | ROC-AUC (OvR) | Settings |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | **GBC (tuned)** | B | **0.8365** | **0.9404** | **0.8365** | **0.8742** | **0.5345** | **0.9969** | 100 trees, depth 5, learning_rate=0.05, subsample=0.8 |
+| 2 | Gradient Boosting (base) | B | 0.7578 | 0.9211 | 0.7578 | 0.7530 | 0.5207 | 0.9919 | 100 trees, depth 3, learning_rate=0.1 |
+| 3 | Bagging (tuned) | B | 0.7232 | 0.9696 | 0.7232 | 0.7302 | 0.4882 | 0.9947 | 200 trees of depth 30, max_samples=0.7, max_features=0.2 |
+| 4 | Bagging (base) | B | 0.7267 | 0.9074 | 0.7267 | 0.6921 | 0.4620 | 0.9953 | 100 trees, max_features=0.3 |
+| 5 | AdaBoost | B | 0.6411 | 0.9286 | 0.6411 | 0.6650 | 0.4520 | 0.9482 | 100 rounds of depth-3 trees, learning_rate=1.0 |
+| 6 | SVC (RBF) | A | 0.6781 | 0.6852 | 0.6781 | 0.6399 | 0.4754 | 0.8942 | C=1.0, RBF, class_weight=balanced, 12k-row sample |
+| 7 | Decision Tree | A | 0.6298 | 0.8653 | 0.6298 | 0.6239 | 0.4103 | 0.8453 | max_depth=None, class_weight=balanced |
+| 8 | K-Nearest Neighbors | A | 0.5993 | 0.6875 | 0.5993 | 0.6197 | 0.4061 | 0.8342 | k=5, distance-weighted |
+| 9 | Logistic Regression | A | 0.6443 | 0.6720 | 0.6443 | 0.6135 | 0.3967 | 0.8627 | C=1.0, class_weight=balanced |
+| 10 | Random Forest | B | 0.6668 | 0.8147 | 0.6668 | 0.6059 | 0.4065 | 0.9740 | 100 trees |
+| 11 | Neural Network (MLP) | B | 0.6444 | 0.7765 | 0.6444 | 0.6007 | 0.4128 | 0.9485 | MLP (100, 50), ReLU, Adam |
+| 12 | Gaussian Naive Bayes | A | 0.2964 | 0.8224 | 0.2964 | 0.3959 | 0.2453 | 0.8261 | no hyperparameters |
+
+ROC-AUC is one-vs-rest, averaged over the classes present in the test fold (probabilities, or the SVC's decision function).
 
 **Hyperparameter tuning (RandomizedSearchCV on 35% training subsample):**
 - **Gradient Boosting:** baseline test F1w 0.7530 → tuned test F1w **0.8742** (best CV F1w = 0.9888).
 - **Bagging:** baseline test F1w 0.6921 → tuned test F1w **0.7302** (best CV F1w = 0.9846).
+
+**5-fold cross-validation of the top two (training set only, weighted F1):**
+
+| Model | Grouped by source machine | Stratified |
+|---|---|---|
+| GBC (tuned) | 0.6007 ± 0.3377 (folds [0.217, 0.6837, 0.9916, 0.1956, 0.9155]) | 0.9914 ± 0.0004 |
+| Bagging (tuned) | 0.6039 ± 0.3197 (folds [0.2564, 0.694, 0.9872, 0.204, 0.878]) | 0.9875 ± 0.0004 |
+
+Grouped folds keep every machine on one side, as the test split does; a fold that holds all the machines of an attack type never trains on it, which is why some grouped folds score low. Stratified folds share machines between training and validation.
 
 **Winning model: Tuned Gradient Boosting (`GBC (tuned)`).** On the 67,001 test flows from 6 unseen machines:
 accuracy 0.8365, weighted precision 0.9404, weighted recall 0.8365, weighted F1 0.8742, macro F1 0.5345, ROC-AUC (one-vs-rest over the classes in the test fold) 0.9969.
