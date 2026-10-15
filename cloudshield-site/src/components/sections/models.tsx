@@ -165,7 +165,7 @@ export function Models() {
   return (
     <Chapter
       id="regression-models"
-      index="09"
+      index="10"
       eyebrow={`Regression · ${D.overview.dataset.name} · model comparison`}
       title={<>Ten regressors,<br />one winner</>}
       deck={<>Linear models, regularised ones, kernels, neighbours and trees, all trained on the same {int(R.trainRows)} flows and scored on the same test set. Tree ensembles win because traffic volume is full of thresholds and interactions a straight line cannot draw.</>}

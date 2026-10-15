@@ -5,7 +5,7 @@
 Reproduces each notebook's pipeline with the same seeds, checks the test scores against the
 numbers the notebooks report, and writes:
 
-    app/models/classification.joblib   GBC (tuned), TON_IoT, split grouped by src_ip
+    app/models/classification.joblib   Bagging (tuned), TON_IoT, split grouped by src_ip
     app/models/clustering.joblib       K-Means (k from the elbow), TON_IoT
     app/models/regression.joblib       Random Forest, UNSW-NB15 (the saved notebook model, recompressed)
     results/tuning_grid_ton_iot.json   cross-validated scores for the website's "tune it yourself" game
@@ -27,16 +27,16 @@ warnings.filterwarnings("ignore")
 
 from sklearn.cluster import KMeans
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.impute import SimpleImputer
+from sklearn.ensemble import BaggingClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, f1_score, r2_score, silhouette_score
-from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, cross_val_score, train_test_split
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 import pipelines as P  # noqa: E402
+import ton_split  # noqa: E402
 
 OUT = ROOT / "app" / "models"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -56,56 +56,76 @@ def wanted(part):
 
 # ---------------------------------------------------------------- shared TON_IoT split (classification)
 def ton_classification_data():
-    df = pd.read_csv(TON).drop_duplicates(ignore_index=True)
-    df = P.ton_cls_clean(df)
-    df = df.sample(frac=1, random_state=RS, ignore_index=True)
-    tr, te = next(StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=RS).split(df, df["type"], groups=df["src_ip"]))
-    fit = P.ton_cls_fit(df.iloc[tr])
-    X_train, X_test = P.ton_cls_build(df.iloc[tr], fit), P.ton_cls_build(df.iloc[te], fit)
-    num = X_train.select_dtypes(include=np.number).columns.tolist()
-    cat = X_train.select_dtypes(include="object").columns.tolist()
-    processor = ColumnTransformer([
-        ("num", Pipeline([("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())]), num),
-        ("cat", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
-                          ("encoder", OneHotEncoder(handle_unknown="ignore", min_frequency=20))]), cat),
-    ])
-    A = processor.fit_transform(X_train)
-    B = processor.transform(X_test)
-    A = A.toarray() if hasattr(A, "toarray") else A
-    B = B.toarray() if hasattr(B, "toarray") else B
-    return df, tr, te, fit, processor, A, B, df["type"].values[tr], df["type"].values[te]
+    df = ton_split.load(TON)
+    tr, te = ton_split.split(df)
+    A, B, processor, fit = ton_split.matrices(df, tr, te)
+    return df, tr, te, fit, processor, A, B, df["type"].values[tr].astype(object), df["type"].values[te].astype(object)
+
+
+def bagging(**kw):
+    """Bagging of class-balanced decision trees, as in 03_classification_1.ipynb."""
+    base = dict(n_estimators=100, max_samples=1.0, max_features=0.3, bootstrap=True, random_state=RS, n_jobs=-1)
+    depth = kw.pop("max_depth", None)
+    return BaggingClassifier(estimator=DecisionTreeClassifier(class_weight="balanced", max_depth=depth, random_state=RS), **(base | kw))
+
+
+FORM = ["proto", "service", "conn_state", "dst_port", "duration", "src_bytes", "dst_bytes", "src_pkts", "dst_pkts", "src_port"]
+
+
+def presets(df, te, y_te, model, processor, fit):
+    """Per class, the real test flow that the form rebuilds best: the model must still get the rebuilt row right."""
+    test_df = df.iloc[te].reset_index(drop=True)
+    cand = np.concatenate([np.random.RandomState(RS).permutation(np.where(y_te == c)[0])[:300] for c in sorted(set(y_te))])
+    vals = test_df.iloc[cand][FORM].to_numpy(dtype=object)
+    internal = test_df.iloc[cand]["dst_ip"].astype(str).str.startswith("192.168.1.").to_numpy()
+    rows = pd.concat([P.ton_row(*v[:9], src_port=v[9], dst_internal=bool(n)) for v, n in zip(vals, internal)], ignore_index=True)
+    X = processor.transform(P.ton_cls_build(P.ton_cls_clean(rows), fit))
+    pr = model.predict_proba(X.toarray() if hasattr(X, "toarray") else X)
+    top = np.asarray(model.classes_)[pr.argmax(1)]
+    out = {}
+    for c in sorted(set(y_te)):
+        ok = np.where((y_te[cand] == c) & (top == c))[0]
+        if len(ok):
+            i = ok[np.argmax(pr[ok].max(1))]
+            out[c] = {"values": [v.item() if hasattr(v, "item") else v for v in vals[i]], "dst_internal": bool(internal[i]),
+                      "p": float(pr[i].max())}
+    return out
 
 
 if wanted("classification") or wanted("tuning"):
     df, tr, te, fit, processor, A, B, y_tr, y_te = ton_classification_data()
-    tick(f"TON_IoT classification matrix: train {A.shape}, test {B.shape} (notebook: 123473 x 165 / 67001 x 165)")
+    tick(f"TON_IoT classification matrix: train {A.shape}, test {B.shape} (notebook: 33912 / 11088 rows, 83 features)")
 
 if wanted("classification"):
-    PARAMS = dict(n_estimators=100, learning_rate=0.05, max_depth=5, subsample=0.8, random_state=RS)  # GBC (tuned), cell 43
-    model = GradientBoostingClassifier(**PARAMS).fit(A, y_tr)
-    pred = model.predict(B)
+    PARAMS = dict(n_estimators=200, max_features=0.3, max_depth=None)  # Bagging (tuned), notebook tuning cell
+    model = bagging(**PARAMS).fit(A.values, y_tr)
+    pred = model.predict(B.values)
     scores = {"acc": accuracy_score(y_te, pred), "f1w": f1_score(y_te, pred, average="weighted"), "f1m": f1_score(y_te, pred, average="macro")}
-    tick(f"GBC (tuned) on the grouped test split: {scores}  (notebook: 0.836525 / 0.874187 / 0.534530)")
+    tick(f"Bagging (tuned) on the grouped test split: {scores}  (notebook: 0.921717 / 0.924889 / 0.835102)")
+    pre = presets(df, te, y_te, model, processor, fit)
+    tick(f"presets: { {k: round(v['p'], 3) for k, v in pre.items()} }")
     joblib.dump({"model": model, "processor": processor, "fit": fit, "params": PARAMS, "classes": list(model.classes_),
-                 "test_scores": scores, "train_rows": int(len(tr)), "test_rows": int(len(te))},
+                 "test_scores": scores, "train_rows": int(len(tr)), "test_rows": int(len(te)), "presets": pre},
                 OUT / "classification.joblib", compress=3)
     tick("saved app/models/classification.joblib")
 
 if wanted("tuning"):
-    # the website's game: every setting scored by 3-fold CV on a training sample, then on the grouped test split
+    # the website's game: every setting scored by 3-fold stratified CV on a training sample (machines shared
+    # between folds), then on the machine-grouped test split
     sub, _ = train_test_split(np.arange(len(y_tr)), train_size=8000, stratify=y_tr, random_state=RS)
     grid = []
-    for n in (50, 100, 200):
-        for lr in (0.05, 0.1, 0.2):
-            for depth in (3, 5):
-                est = GradientBoostingClassifier(n_estimators=n, learning_rate=lr, max_depth=depth, subsample=0.8, random_state=RS)
-                cv = cross_val_score(est, A[sub], y_tr[sub], cv=StratifiedKFold(3, shuffle=True, random_state=RS), scoring="f1_weighted", n_jobs=3)
-                p = est.fit(A[sub], y_tr[sub]).predict(B)
-                grid.append({"n_estimators": n, "learning_rate": lr, "max_depth": depth, "cv": round(float(cv.mean()), 4),
+    for n in (25, 100, 200):
+        for mf in (0.1, 0.3, 0.8):
+            for depth in (None, 8):
+                est = bagging(n_estimators=n, max_features=mf, max_depth=depth, n_jobs=1)
+                cv = cross_val_score(est, A.iloc[sub], y_tr[sub], cv=StratifiedKFold(3, shuffle=True, random_state=RS),
+                                     scoring="f1_weighted", n_jobs=3)
+                p = est.set_params(n_jobs=-1).fit(A.iloc[sub], y_tr[sub]).predict(B)
+                grid.append({"n_estimators": n, "max_features": mf, "max_depth": depth, "cv": round(float(cv.mean()), 4),
                              "cvStd": round(float(cv.std()), 4), "test": round(float(f1_score(y_te, p, average="weighted")), 4),
                              "testAcc": round(float(accuracy_score(y_te, p)), 4)})
-                tick(f"grid n={n} lr={lr} depth={depth}: CV {cv.mean():.4f}  test {grid[-1]['test']:.4f}")
-    (ROOT / "results" / "tuning_grid_ton_iot.json").write_text(json.dumps({"sampleRows": 8000, "grid": grid}, indent=1))
+                tick(f"grid n={n} max_features={mf} depth={depth}: CV {cv.mean():.4f}  test {grid[-1]['test']:.4f}")
+    (ROOT / "results" / "tuning_grid_ton_iot.json").write_text(json.dumps({"model": "Bagging", "sampleRows": 8000, "grid": grid}, indent=1))
     tick("saved results/tuning_grid_ton_iot.json")
 
 if wanted("clustering"):

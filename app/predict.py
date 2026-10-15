@@ -19,6 +19,7 @@ except Exception:
 
 MODELS = Path(__file__).resolve().parent / "models"
 CLS = joblib.load(MODELS / "classification.joblib")
+CLS["model"].set_params(n_jobs=1)  # one row at a time: worker processes would only add start-up time
 CLU = joblib.load(MODELS / "clustering.joblib")
 REG = joblib.load(MODELS / "regression.joblib")
 
@@ -41,18 +42,20 @@ def name(c: str) -> str:
     return LABEL.get(c, c.capitalize())
 
 
-def classify(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts) -> dict:
-    row = P.ton_row(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts)
+def classify(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts,
+             src_port=49152, dst_internal=True) -> dict:
+    row = P.ton_row(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts,
+                    src_port=src_port, dst_internal=dst_internal)
     X = CLS["processor"].transform(P.ton_cls_build(P.ton_cls_clean(row), CLS["fit"]))
     X = X.toarray() if hasattr(X, "toarray") else X
     proba = CLS["model"].predict_proba(X)[0]
     probs = dict(sorted(((c, float(p)) for c, p in zip(CLS["classes"], proba)), key=lambda kv: -kv[1]))
     top = next(iter(probs))
     return {"prediction": top, "label": name(top), "confidence": probs[top], "note": NOTE[top],
-            "probabilities": probs, "model": "Gradient Boosting (tuned)", "dataset": "TON_IoT"}
+            "probabilities": probs, "model": "Bagging (tuned)", "dataset": "TON_IoT"}
 
 
-def cluster(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts) -> dict:
+def cluster(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts, *_unused) -> dict:
     row = P.ton_row(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts)
     X = CLU["processor"].transform(P.clu_build(row, CLU["top_ports"]))
     km = CLU["model"]
@@ -75,3 +78,4 @@ def regress(proto, service, state, dur, spkts, dpkts, sbytes, sttl, dttl, dloss)
 
 
 CLS_SCORES = CLS["test_scores"]
+CLS_PRESETS = CLS.get("presets", {})

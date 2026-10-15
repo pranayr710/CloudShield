@@ -1,7 +1,7 @@
 """CloudShield: live predictions from the three final models (Gradio).
 
 Tabs and API endpoints (the project website calls these through the Gradio client):
-    /classify  TON_IoT flow -> traffic type (Gradient Boosting, tuned)
+    /classify  TON_IoT flow -> traffic type (Bagging, tuned)
     /cluster   TON_IoT flow -> behaviour cluster (K-Means)
     /regress   UNSW-NB15 flow -> bytes the reply will carry (Random Forest)
 
@@ -15,8 +15,8 @@ import predict as M
 from predict import name
 
 PROTOS = ["tcp", "udp", "icmp"]
-SERVICES = ["-", "http", "dns", "ssl", "ftp", "smtp", "ssh", "dhcp", "ftp-data"]
-STATES = ["SF", "S0", "REJ", "S1", "S2", "S3", "OTH", "RSTO", "RSTR", "RSTOS0", "SH", "SHR"]
+SERVICES = ["-", "dns", "http", "ftp", "ssl", "gssapi", "dce_rpc", "smb", "smb;gssapi"]  # every service in TON_IoT
+STATES = ["S0", "SF", "REJ", "OTH", "SH", "S1", "S3", "SHR", "RSTR", "RSTRH", "RSTO", "S2", "RSTOS0"]  # every state in TON_IoT
 UNSW_PROTOS = ["tcp", "udp", "arp", "unas", "ospf", "sctp"]
 UNSW_SERVICES = ["-", "dns", "http", "ftp", "ftp-data", "smtp", "ssh", "pop3", "snmp", "ssl", "dhcp", "irc", "radius"]
 UNSW_STATES = ["FIN", "INT", "CON", "REQ", "RST", "ACC", "CLO"]
@@ -30,15 +30,15 @@ def card(title: str, line: str, alert: bool) -> str:
             f'<div style="color:{ink};margin-top:4px">{line}</div></div>')
 
 
-def classify(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts):
-    out = M.classify(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts)
+def classify(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts, src_port=49152, dst_internal=True):
+    out = M.classify(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts, src_port, dst_internal)
     top = out["prediction"]
     html = card("Normal traffic" if top == "normal" else f"Attack: {out['label']}",
                 f"{out['confidence']:.1%} confidence. {out['note']}", top != "normal")
     return html, {name(k): v for k, v in out["probabilities"].items()}, out
 
 
-def cluster(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts):
+def cluster(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts, src_port=49152, dst_internal=True):
     out = M.cluster(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts)
     mix = ", ".join(f"{name(k)} {v:.0%}" for k, v in list(out["mix"].items())[:3])
     html = card(f"Cluster {out['cluster']} of {out['k']}", f"Flows in this cluster during training: {mix}.", False)
@@ -53,14 +53,8 @@ def regress(proto, service, state, dur, spkts, dpkts, sbytes, sttl, dttl, dloss)
 
 
 # ---------------------------------------------------------------- interface
-TON_EXAMPLES = [
-    ["tcp", "http", "SF", 80, 0.22, 320, 1920, 5, 6],
-    ["udp", "dns", "SF", 53, 0.004, 74, 90, 2, 2],
-    ["tcp", "-", "REJ", 9594, 0.003, 0, 0, 2, 1],
-    ["tcp", "-", "S0", 445, 0.0, 0, 0, 1, 0],
-    ["tcp", "ftp", "SF", 21, 3.59, 86, 215, 18, 12],
-    ["tcp", "ssl", "SF", 443, 3.23, 1179, 5861, 15, 18],
-]
+# real test-set flows, one per traffic type, that the model classifies correctly (chosen in build_models.py)
+TON_EXAMPLES = [p["values"][:9] + [p["values"][9], p["dst_internal"]] for p in M.CLS_PRESETS.values()]
 
 
 def ton_inputs():
@@ -77,7 +71,10 @@ def ton_inputs():
     with gr.Row():
         sp = gr.Number(5, label="Packets sent", precision=0)
         dp = gr.Number(6, label="Packets received", precision=0)
-    return [proto, service, state, port, dur, sb, db, sp, dp]
+    with gr.Row():
+        sport = gr.Number(49152, label="Source port", precision=0)
+        internal = gr.Checkbox(True, label="Destination inside the network (192.168.1.x)")
+    return [proto, service, state, port, dur, sb, db, sp, dp, sport, internal]
 
 
 with gr.Blocks(title="CloudShield · live models") as demo:

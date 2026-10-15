@@ -9,6 +9,7 @@ import { ClassifierLab } from '@/components/sections/classifier-lab'
 import { Leaderboard } from '@/components/sections/leaderboard'
 import { Confusion } from '@/components/sections/confusion'
 import { Clusters } from '@/components/sections/clusters'
+import { Compare } from '@/components/sections/compare'
 import { Games } from '@/components/sections/games'
 import { Forecaster } from '@/components/sections/forecaster'
 import { Models } from '@/components/sections/models'
@@ -40,6 +41,7 @@ export default function App() {
         <Confusion />
         <Games />
         <Clusters />
+        <Compare />
         <Interlude
           video="switch"
           quote={<>Third track: every connection sends something back. How much?</>}

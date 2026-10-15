@@ -145,7 +145,7 @@ export type TonModel = {
   acc: number; f1w: number; f1m: number; params: string
   precision: number | null; recall: number | null; auc: number | null
 }
-export type TuneRow = { n_estimators: number; learning_rate: number; max_depth: number; cv: number; cvStd: number; test: number; testAcc: number }
+export type TuneRow = { n_estimators: number; max_features: number; max_depth: number | null; cv: number; cvStd: number; test: number; testAcc: number }
 
 export type TonData = {
   overview: {
@@ -157,6 +157,9 @@ export type TonData = {
   classification: {
     best: string
     bestDisplay: string
+    /** the untuned configuration of the final model */
+    bestBase: string
+    finalParamsText: string
     split: string
     /** classes present in the test fold, most frequent first */
     order: string[]
@@ -164,7 +167,7 @@ export type TonData = {
     missingFromTest: string[]
     models: TonModel[]
     final: { acc: number; f1w: number; f1m: number; precision: number; recall: number; auc: number }
-    finalParams: Record<string, number>
+    finalParams: Record<string, number | null>
     searches: { model: string; params: string; cv: number; test: number }[]
     perClass: { name: string; precision: number; recall: number; f1: number }[]
     confusion: { rows: string[]; cols: string[]; counts: number[][]; norm: number[][] }
@@ -174,9 +177,9 @@ export type TonData = {
     stream: TonFlow[]
     /** [P(attack) from the final model, class index in `allClasses`]; uncertain flows oversampled */
     firewall: { flows: [number, number][]; hardShare: number; unsureShareTest: number; oversampled: boolean }
-    /** 5-fold CV grouped by source machine, training set only */
+    /** 5-fold CV of the top two, training set only: grouped by source machine, and stratified */
     cv5: { model: string; kind: 'grouped' | 'stratified'; mean: number; std: number; f1m: number; acc: number; folds: number[] }[]
-    tuning: { sampleRows: number; grid: TuneRow[] } | null
+    tuning: { model: string; sampleRows: number; grid: TuneRow[] } | null
   }
   clustering: {
     sample: number; k: number
@@ -188,6 +191,31 @@ export type TonData = {
     clusters: { id: number; size: number; mix: { name: string; share: number }[] }[]
     points: [number, number, number, number][]
   }
+  /** From notebooks/04_comparative_study.ipynb */
+  comparison: {
+    classification: {
+      classes: string[]
+      support: Record<string, number>
+      rows: CmpModel[]
+      families: { family: string; models: string; best: number; mean: number; meanMacro: number }[]
+    }
+    clustering: {
+      rows: CmpCluster[]
+      sweep: { name: string; k: number; silhouette: number; daviesBouldin: number; calinskiHarabasz: number; ari: number }[]
+      stability: { name: string; ari: number; std: number }[]
+      runtime: { name: string; flows: number; time: number }[]
+    }
+  }
+}
+export type CmpModel = {
+  model: string; key: string; family: string; part: 'A' | 'B'
+  acc: number; precision: number; recall: number; f1w: number; f1m: number; auc: number
+  trainTime: number; predictTime: number; ci: [number, number]; mcnemarP: number | null; perClass: number[]
+}
+export type CmpCluster = {
+  name: string; required: boolean; clusters: number
+  silhouette: number | null; daviesBouldin: number | null; calinskiHarabasz: number | null
+  ari: number; nmi: number; purity: number; largest: number; noise: number; time: number
 }
 
 export const T = tonRaw as unknown as TonData

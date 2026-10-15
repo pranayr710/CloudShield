@@ -9,15 +9,16 @@ const ORDER = C.allClasses
 
 /* ================================================================== Game 1: tune it yourself */
 
-type GridRow = { n_estimators: number; learning_rate: number; max_depth: number; cv: number; cvStd: number; test: number; testAcc: number }
+type GridRow = { n_estimators: number; max_features: number; max_depth: number | null; cv: number; cvStd: number; test: number; testAcc: number }
 const GRID: GridRow[] = C.tuning?.grid ?? []
-const TREES = [50, 100, 200]
-const RATES = [0.05, 0.1, 0.2]
-const DEPTHS = [3, 5]
+const TREES = [25, 100, 200]
+const FEATURES = [0.1, 0.3, 0.8]
+const DEPTHS = [0, 8] // 0 = grown to full depth (max_depth=None)
+const depthLabel = (d: number | null) => (d ? `depth ${d}` : 'full depth')
 const BUDGET = 6
 const team = C.models.find((m) => m.key === C.best)!
 
-function Choice({ label, options, value, onChange }: { label: string; options: number[]; value: number; onChange: (v: number) => void }) {
+function Choice({ label, options, value, onChange, format = String }: { label: string; options: number[]; value: number; onChange: (v: number) => void; format?: (v: number) => string }) {
   return (
     <div className="grid gap-1.5">
       <span className="eyebrow">{label}</span>
@@ -25,7 +26,7 @@ function Choice({ label, options, value, onChange }: { label: string; options: n
         {options.map((o) => (
           <button key={o} type="button" onClick={() => onChange(o)}
             className={cn('num flex-1 rounded-full px-3 py-1.5 text-sm transition', value === o ? 'bg-ink text-paper' : 'text-ink-muted hover:text-ink')}>
-            {o}
+            {format(o)}
           </button>
         ))}
       </div>
@@ -35,8 +36,8 @@ function Choice({ label, options, value, onChange }: { label: string; options: n
 
 function TuneGame() {
   const [n, setN] = useState(100)
-  const [lr, setLr] = useState(0.1)
-  const [depth, setDepth] = useState(3)
+  const [mf, setMf] = useState(0.3)
+  const [depth, setDepth] = useState(0)
   const [tries, setTries] = useState<GridRow[]>([])
   const [training, setTraining] = useState(false)
   const [revealed, setRevealed] = useState(false)
@@ -44,7 +45,7 @@ function TuneGame() {
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
   if (!GRID.length) return null
-  const row = (a: number, b: number, c: number) => GRID.find((g) => g.n_estimators === a && g.learning_rate === b && g.max_depth === c)
+  const row = (a: number, b: number, c: number) => GRID.find((g) => g.n_estimators === a && g.max_features === b && (g.max_depth ?? 0) === c)
   const best = tries.reduce<GridRow | null>((b, t) => (!b || t.cv > b.cv ? t : b), null)
   const gridBestCv = GRID.reduce((b, g) => (g.cv > b.cv ? g : b), GRID[0])
   const gridBestTest = GRID.reduce((b, g) => (g.test > b.test ? g : b), GRID[0])
@@ -52,7 +53,7 @@ function TuneGame() {
   const testMin = Math.min(...GRID.map((g) => g.test))
 
   const train = () => {
-    const r = row(n, lr, depth)
+    const r = row(n, mf, depth)
     if (!r || training || tries.length >= BUDGET) return
     setTraining(true)
     timer.current = window.setTimeout(() => { setTries((t) => [...t, r]); setTraining(false) }, 1100)
@@ -64,7 +65,7 @@ function TuneGame() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-1">
           <span className="eyebrow">Game 1 · Tune it yourself</span>
-          <h3 className="display text-[1.4rem] leading-tight">Tune Gradient Boosting</h3>
+          <h3 className="display text-[1.4rem] leading-tight">Tune {C.tuning?.model ?? 'the model'}</h3>
         </div>
         <div className="grid justify-items-end">
           <span className="num text-2xl leading-none">{best ? best.cv.toFixed(4) : '–'}</span>
@@ -77,8 +78,8 @@ function TuneGame() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Choice label="Trees" options={TREES} value={n} onChange={setN} />
-        <Choice label="Learning rate" options={RATES} value={lr} onChange={setLr} />
-        <Choice label="Tree depth" options={DEPTHS} value={depth} onChange={setDepth} />
+        <Choice label="Features per tree" options={FEATURES} value={mf} onChange={setMf} format={(v) => `${Math.round(v * 100)}%`} />
+        <Choice label="Tree depth" options={DEPTHS} value={depth} onChange={setDepth} format={(v) => (v ? String(v) : 'full')} />
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={train} disabled={training || tries.length >= BUDGET || revealed}
@@ -104,7 +105,7 @@ function TuneGame() {
           {tries.map((t, i) => (
             <li key={i} className="grid grid-cols-[1.4rem_minmax(0,1.3fr)_minmax(0,1fr)_3.6rem] items-center gap-3 text-xs">
               <span className="num text-ink-dim">{i + 1}</span>
-              <span className="num text-ink-muted">{t.n_estimators} trees · lr {t.learning_rate} · depth {t.max_depth}</span>
+              <span className="num text-ink-muted">{t.n_estimators} trees · {Math.round(t.max_features * 100)}% features · {depthLabel(t.max_depth)}</span>
               <span className="relative h-2.5 rounded-sm bg-panel-2">
                 <span className={cn('absolute inset-y-0 left-0 rounded-sm', t === best ? 'bg-red' : 'bg-ink/60')} style={{ width: `${8 + ((t.cv - cvMin) / (cvMax - cvMin || 1)) * 92}%` }} />
               </span>
@@ -121,16 +122,16 @@ function TuneGame() {
             <div className="grid gap-0.5"><span className="eyebrow text-red">Test F1, unseen machines</span><span className="num text-2xl text-red">{best.test.toFixed(4)}</span></div>
           </div>
           <p className="text-sm leading-relaxed text-ink-muted">
-            {best === gridBestCv ? 'You found the top cross-validation setting. ' : `The top cross-validation setting was ${gridBestCv.n_estimators} trees, learning rate ${gridBestCv.learning_rate}, depth ${gridBestCv.max_depth} (${gridBestCv.cv.toFixed(4)}). `}
-            The cross-validation folds share machines with each other, the test set does not. On unseen machines the best of all 18 settings was {gridBestTest.n_estimators} trees, learning rate {gridBestTest.learning_rate}, depth {gridBestTest.max_depth} ({gridBestTest.test.toFixed(4)}).
+            {best === gridBestCv ? 'You found the top cross-validation setting. ' : `The top cross-validation setting was ${gridBestCv.n_estimators} trees, ${Math.round(gridBestCv.max_features * 100)}% features, ${depthLabel(gridBestCv.max_depth)} (${gridBestCv.cv.toFixed(4)}). `}
+            The cross-validation folds share machines with each other, the test set does not. On unseen machines the best of all {GRID.length} settings was {gridBestTest.n_estimators} trees, {Math.round(gridBestTest.max_features * 100)}% features, {depthLabel(gridBestTest.max_depth)} ({gridBestTest.test.toFixed(4)}).
           </p>
           <div className="overflow-x-auto">
             <table className="num w-full min-w-[440px] text-center text-[0.7rem]">
-              <thead><tr className="text-ink-dim"><th className="py-1 text-left font-normal">depth · lr</th>{TREES.map((t) => <th key={t} className="font-normal">{t} trees</th>)}</tr></thead>
+              <thead><tr className="text-ink-dim"><th className="py-1 text-left font-normal">depth · features</th>{TREES.map((t) => <th key={t} className="font-normal">{t} trees</th>)}</tr></thead>
               <tbody>
-                {DEPTHS.flatMap((d) => RATES.map((l) => (
+                {DEPTHS.flatMap((d) => FEATURES.map((l) => (
                   <tr key={`${d}-${l}`}>
-                    <td className="py-0.5 text-left text-ink-muted">{d} · {l}</td>
+                    <td className="py-0.5 text-left text-ink-muted">{d ? d : 'full'} · {Math.round(l * 100)}%</td>
                     {TREES.map((t) => {
                       const g = row(t, l, d)!
                       return (
@@ -151,7 +152,7 @@ function TuneGame() {
         </div>
       )}
       <p className="text-xs leading-relaxed text-ink-dim">
-        For speed, every setting here was trained on a {int(C.tuning?.sampleRows ?? 0)}-flow sample of the training machines. For comparison, the team's tuned model, trained on all {int(C.trainRows)} training flows, scores {team.f1w.toFixed(4)} on the same unseen machines: more data from the same few machines does not automatically mean better results on new ones.
+        For speed, every setting here was trained on a {int(C.tuning?.sampleRows ?? 0)}-flow sample of the training machines. For comparison, the team's tuned model, trained on all {int(C.trainRows)} training flows, scores {team.f1w.toFixed(4)} on the same unseen machines.
       </p>
     </div>
   )
@@ -375,7 +376,7 @@ function Firewall() {
         </div>
       </div>
       <p className="text-xs leading-relaxed text-ink-dim">
-        Every packet is a real flow from the unseen test machines, carrying the final model's real attack probability.
+        Every packet is a real flow from the unseen test machines, carrying the final model's real attack probability.{' '}
         {C.firewall.oversampled
           ? `The model is unsure about only ${pct(C.firewall.unsureShareTest, 1)} of test flows, so this stream over-samples those hard cases (${pct(C.firewall.hardShare)} of packets) to make the threshold matter.`
           : `The model is unsure (attack probability between 2% and 98%) about ${pct(C.firewall.unsureShareTest)} of these flows, so where you set the threshold really matters.`}
@@ -392,7 +393,7 @@ export function Games() {
       tone="red"
       eyebrow="Your turn"
       title={<>Play against<br />the model</>}
-      deck={<>Two games built on the project's real results. First, tune Gradient Boosting yourself and see why cross-validation alone can mislead. Then run the firewall with the final model's real attack probabilities and feel the trade-off between catching attacks and blocking real users. To type in your own flow, open the live models.</>}
+      deck={<>Two games built on the project's real results. First, tune {C.tuning?.model ?? 'the final model'} yourself and see why cross-validation alone can mislead. Then run the firewall with the final model's real attack probabilities and feel the trade-off between catching attacks and blocking real users. To type in your own flow, open the live models.</>}
     >
       <div className="grid gap-4 xl:grid-cols-2">
         <TuneGame />

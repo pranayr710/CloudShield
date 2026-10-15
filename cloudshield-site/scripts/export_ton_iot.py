@@ -5,9 +5,11 @@ Run from the site folder after the notebooks have run and the deployable models 
     py -3.13 ../app/build_models.py        # once, from the project root (writes app/models/*.joblib)
     py -3.13 scripts/export_ton_iot.py
 
-Classification comes from notebooks/03_classification_1.ipynb: its result tables, its tuning
-output, and the final model rebuilt by app/build_models.py on exactly the same grouped split.
-Clustering repeats notebooks/clustering.ipynb with the same seeds.
+Classification comes from notebooks/03_classification_1.ipynb (its tuning output) and
+notebooks/04_comparative_study.ipynb (the 12-configuration comparison, CV and statistics), plus the
+final model rebuilt by app/build_models.py on exactly the same machine-grouped split.
+Clustering repeats notebooks/clustering.ipynb with the same seeds; the clustering comparison comes
+from notebooks/04_comparative_study.ipynb.
 """
 from __future__ import annotations
 
@@ -42,6 +44,7 @@ DATA = ROOT / "data/raw/TON_IoT/train_test_network.csv"
 RES = ROOT / "results"
 NB_CLS = ROOT / "notebooks/03_classification_1.ipynb"
 NB_CLU = ROOT / "notebooks/clustering.ipynb"
+CMP = RES / "comparative"
 RS = 42
 T0 = time.time()
 
@@ -53,15 +56,16 @@ PARAMS = {
     "Gaussian NB": "no hyperparameters",
     "Decision Tree": "max_depth=None, class_weight=balanced",
     "SVC (RBF)": "C=1.0, RBF, class_weight=balanced, 12k-row sample",
-    "Random Forest": "100 trees",
-    "AdaBoost": "100 rounds of depth-3 trees, learning_rate=1.0",
-    "GradientBoostingClassifier": "100 trees, depth 3, learning_rate=0.1",
-    "GBC (tuned)": "100 trees, depth 5, learning_rate=0.05, subsample=0.8",
-    "Bagging": "100 trees, max_features=0.3",
-    "Bagging (tuned)": "200 trees of depth 30, max_samples=0.7, max_features=0.2",
+    "Random Forest": "200 trees, class_weight=balanced_subsample",
+    "AdaBoost": "100 rounds of depth-3 trees, learning_rate=1.0, balanced weights",
+    "Gradient Boosting": "100 trees, depth 3, learning_rate=0.1, balanced weights",
+    "Gradient Boosting (tuned)": "100 trees, depth 4, learning_rate=0.05, subsample=0.8",
+    "Bagging": "100 balanced trees, max_features=0.3",
+    "Bagging (tuned)": "200 balanced trees, max_features=0.3",
     "Neural Network": "MLP (100, 50), ReLU, Adam",
 }
-DISPLAY = {"GradientBoostingClassifier": "Gradient Boosting", "Neural Network": "MLP (neural network)"}
+DISPLAY = {"Neural Network": "MLP (neural network)"}
+BEST, BEST_BASE = "Bagging (tuned)", "Bagging"
 
 
 def tick(msg):
@@ -100,38 +104,37 @@ df = ton_split.load(DATA)
 tr, te = ton_split.split(df)
 _, B, _, _ = ton_split.matrices(df, tr, te, processor=bundle["processor"], fit=bundle["fit"])
 y_te = df["type"].values[te]
-proba = model.predict_proba(B)
+proba = model.predict_proba(B.values)
 classes = list(model.classes_)
 pred = np.array(classes)[proba.argmax(1)]
 test_classes = [c for c in counts.index if c in set(y_te)]
 pred_classes = [c for c in counts.index if c in set(pred) | set(y_te)]
 cm = confusion_matrix(y_te, pred, labels=pred_classes)[[pred_classes.index(c) for c in test_classes]]
-present = [classes.index(c) for c in test_classes]
 final = {
     "acc": r((pred == y_te).mean()), "f1w": r(f1_score(y_te, pred, average="weighted")), "f1m": r(f1_score(y_te, pred, average="macro")),
     "precision": r(precision_score(y_te, pred, average="weighted", zero_division=0)),
     "recall": r(recall_score(y_te, pred, average="weighted", zero_division=0)),
-    # one-vs-rest AUC over the classes that occur in the test fold
     "auc": r(np.mean([roc_auc_score(y_te == c, proba[:, classes.index(c)]) for c in test_classes])),
 }
 tick(f"final model re-scored: {final}")
 
-board = pd.read_csv(RES / "classification_12model_ton_iot.csv")
+board = pd.read_csv(CMP / "classification_comparison.csv")
 models = [{
     "model": DISPLAY.get(row["Model"], row["Model"]), "key": row["Model"],
     "part": "A" if row["Model"] in PART_A else "B", "tuned": "(tuned)" in row["Model"],
-    "acc": r(row["Accuracy test"]), "f1w": r(row["F1w test"]), "f1m": r(row["F1m test"]), "params": PARAMS.get(row["Model"], ""),
-    "precision": r(row.get("Precision test")), "recall": r(row.get("Recall test")), "auc": r(row.get("ROC-AUC test")),
-} for _, row in board.sort_values("F1w test", ascending=False).iterrows()]
+    "acc": r(row["Accuracy"]), "f1w": r(row["F1 (weighted)"]), "f1m": r(row["F1 (macro)"]), "params": PARAMS.get(row["Model"], ""),
+    "precision": r(row["Precision (w)"]), "recall": r(row["Recall (w)"]), "auc": r(row["ROC-AUC (OvR)"]),
+} for _, row in board.iterrows()]
 pc_p = precision_score(y_te, pred, labels=test_classes, average=None, zero_division=0)
 pc_r = recall_score(y_te, pred, labels=test_classes, average=None, zero_division=0)
 pc_f = f1_score(y_te, pred, labels=test_classes, average=None, zero_division=0)
 
+# tuning cell of 03_classification_1.ipynb: "[Bagging (tuned)] inner F1w=0.3816 cfg={...} test F1w=0.9249"
 text = notebook_text(NB_CLS)
-searches = []
-for name, block in zip(["GBC (tuned)", "Bagging (tuned)"], re.findall(r"Best params : (\{[^\n]*\})\s*\nBest CV F1w : ([\d.]+)", text)):
-    test = next(m for m in models if m["key"] == name)
-    searches.append({"model": name, "params": block[0], "cv": float(block[1]), "test": test["f1w"]})
+searches = [{"model": m, "params": cfg, "cv": float(cv), "test": float(test)}
+            for m, cv, cfg, test in re.findall(r"\[([^\]]+ \(tuned\))\] inner F1w=([\d.]+) cfg=(\{[^}]*\}) test F1w=([\d.]+)", text)]
+order_tuned = {BEST: 0}
+searches.sort(key=lambda x: order_tuned.get(x["model"], 1))
 
 show = ["proto", "service", "conn_state", "duration", "src_bytes", "dst_bytes", "src_pkts", "dst_pkts", "dst_port"]
 test_df = df.iloc[te].reset_index(drop=True)
@@ -168,24 +171,29 @@ firewall = {"flows": [[r(p_attack[i], 3), order_all.index(y_te[i])] for i in fw_
             "oversampled": bool(len(unsure) / len(y_te) < 0.2)}
 
 SHOW_CV5 = True  # set False to leave the 5-fold CV results off the site
-cv_path = RES / "classification_cv5_top2.csv"
-cv5 = [{"model": row["Model"], "kind": kind, "mean": r(row["CV F1w mean"]), "std": r(row["CV F1w std"]), "f1m": r(row["CV F1m mean"]),
-        "acc": r(row["CV Acc mean"]), "folds": [float(x) for x in str(row["F1w per fold"]).strip("[]").split(",")]}
-       for kind, path in (("grouped", cv_path), ("stratified", RES / "classification_cv5_top2_stratified.csv"))
-       if SHOW_CV5 and path.exists() for _, row in pd.read_csv(path).iterrows()]
+folds = pd.read_csv(CMP / "classification_cv5_folds.csv") if (CMP / "classification_cv5_folds.csv").exists() else pd.DataFrame()
+cv5 = []
+if SHOW_CV5 and len(folds):
+    for (m, kind), g in folds.groupby(["Model", "CV"], sort=False):
+        g = g.sort_values("fold")
+        cv5.append({"model": m, "kind": "grouped" if kind.startswith("grouped") else "stratified",
+                    "mean": r(g["F1 (weighted)"].mean()), "std": r(g["F1 (weighted)"].std(ddof=0)), "f1m": r(g["F1 (macro)"].mean()),
+                    "acc": r(g["Accuracy"].mean()), "folds": [r(v) for v in g["F1 (weighted)"]]})
 grid_path = RES / "tuning_grid_ton_iot.json"
 tuning = json.loads(grid_path.read_text()) if grid_path.exists() else None
-
+fp = bundle["params"]
 classification = {
-    "best": "GBC (tuned)",
-    "bestDisplay": "Gradient Boosting (tuned)",
-    "split": "StratifiedGroupKFold (5 folds) grouped by src_ip; first fold as the test set",
+    "best": BEST,
+    "bestDisplay": BEST,
+    "bestBase": BEST_BASE,
+    "finalParamsText": f"{fp['n_estimators']} trees, {int(fp['max_features'] * 100)}% of the features per tree",
+    "split": "machine-grouped: six held-out source machines (src_ip) form the test set, every traffic type on both sides",
     "order": test_classes,
     "allClasses": order_all,
     "missingFromTest": [c for c in order_all if c not in test_classes],
     "models": models,
     "final": final,
-    "finalParams": bundle["params"],
+    "finalParams": fp,
     "searches": searches,
     "cv5": cv5,
     "perClass": [{"name": c, "precision": r(pc_p[i]), "recall": r(pc_r[i]), "f1": r(pc_f[i])} for i, c in enumerate(test_classes)],
@@ -197,6 +205,43 @@ classification = {
     "lab": lab, "stream": stream, "firewall": firewall, "tuning": tuning,
 }
 tick("classification exported")
+
+# ---------------------------------------------------------------- comparative study (notebooks/04_comparative_study.ipynb)
+pcf = pd.read_csv(CMP / "classification_per_class_f1.csv", index_col=0)
+ci = pd.read_csv(CMP / "classification_bootstrap_ci.csv").set_index("Model")
+mcn = pd.read_csv(CMP / "classification_mcnemar.csv").set_index("Compared with")
+fam = pd.read_csv(CMP / "classification_families.csv")
+clu_cmp = pd.read_csv(CMP / "clustering_comparison.csv")
+sweep = pd.read_csv(CMP / "clustering_k_sweep.csv")
+st_ari = pd.read_csv(CMP / "clustering_stability_ari.csv").groupby("Algorithm")["ARI between runs"].agg(["mean", "std"])
+runtime = pd.read_csv(CMP / "clustering_runtime.csv")
+comparison = {
+    "classification": {
+        "classes": list(pcf.columns),
+        "support": {c: int((y_te == c).sum()) for c in pcf.columns},
+        "rows": [{"model": DISPLAY.get(row["Model"], row["Model"]), "key": row["Model"], "family": row["Family"], "part": row["Part"],
+                  "acc": r(row["Accuracy"]), "precision": r(row["Precision (w)"]), "recall": r(row["Recall (w)"]),
+                  "f1w": r(row["F1 (weighted)"]), "f1m": r(row["F1 (macro)"]), "auc": r(row["ROC-AUC (OvR)"]),
+                  "trainTime": r(row["Train time (s)"], 2), "predictTime": r(row["Predict time (s)"], 3),
+                  "ci": [r(ci.loc[row["Model"], "CI low (2.5%)"]), r(ci.loc[row["Model"], "CI high (97.5%)"])],
+                  "mcnemarP": r(mcn.loc[row["Model"], "p-value (exact McNemar)"], 6) if row["Model"] in mcn.index else None,
+                  "perClass": [r(v, 3) for v in pcf.loc[row["Model"]]]}
+                 for _, row in board.iterrows()],
+        "families": [{"family": row["Family"], "models": row["models"], "best": r(row["best_F1w"]), "mean": r(row["mean_F1w"]),
+                      "meanMacro": r(row["mean_F1m"])} for _, row in fam.iterrows()],
+    },
+    "clustering": {
+        "rows": [{"name": row["Algorithm"], "required": row["Required"] == "yes", "clusters": int(row["Clusters"]),
+                  "silhouette": r(row["Silhouette ↑"]), "daviesBouldin": r(row["Davies-Bouldin ↓"]), "calinskiHarabasz": r(row["Calinski-Harabasz ↑"], 1),
+                  "ari": r(row["ARI ↑"]), "nmi": r(row["NMI ↑"]), "purity": r(row["Purity ↑"]), "largest": r(row["Largest cluster share"]),
+                  "noise": r(row["Noise share"]), "time": r(row["Fit time (s)"], 3)} for _, row in clu_cmp.iterrows()],
+        "sweep": [{"name": row["Algorithm"], "k": int(row["k"]), "silhouette": r(row["Silhouette ↑"]), "daviesBouldin": r(row["Davies-Bouldin ↓"]),
+                   "calinskiHarabasz": r(row["Calinski-Harabasz ↑"], 1), "ari": r(row["ARI ↑"])} for _, row in sweep.iterrows()],
+        "stability": [{"name": n, "ari": r(v["mean"]), "std": r(v["std"])} for n, v in st_ari.iterrows()],
+        "runtime": [{"name": row["Algorithm"], "flows": int(row["flows"]), "time": r(row["fit time (s)"], 3)} for _, row in runtime.iterrows()],
+    },
+}
+tick("comparison exported")
 
 # ---------------------------------------------------------------- clustering (same code and seeds as clustering.ipynb)
 sample = dedup.sample(n=30_000, random_state=RS).reset_index(drop=True)
@@ -250,6 +295,6 @@ clustering = {
 }
 tick("clustering exported")
 
-OUT.write_text(json.dumps({"overview": overview, "classification": classification, "clustering": clustering},
+OUT.write_text(json.dumps({"overview": overview, "classification": classification, "clustering": clustering, "comparison": comparison},
                           separators=(",", ":"), default=str), encoding="utf-8")
 tick(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB)")

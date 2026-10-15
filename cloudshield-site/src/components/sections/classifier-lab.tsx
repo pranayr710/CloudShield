@@ -95,7 +95,7 @@ export function ClassifierLab() {
       tone="red"
       eyebrow={`Classification · ${C.bestDisplay}`}
       title={<>Name the<br />attack</>}
-      deck={<>Pick a flow from a machine the model never saw in training. The final model, a tuned Gradient Boosting classifier, reads its {C.features} encoded features and gives a probability for each of the ten classes. On all {int(C.testRows)} flows from the unseen machines it is right {pct(C.final.acc, 1)} of the time.</>}
+      deck={<>Pick a flow from a machine the model never saw in training. The final model, {C.bestDisplay}, reads its {C.features} encoded features and gives a probability for each of the ten classes. On all {int(C.testRows)} flows from the unseen machines it is right {pct(C.final.acc, 1)} of the time.</>}
     >
       <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Choose a flow by its true class">
         {C.order.map((c) => (

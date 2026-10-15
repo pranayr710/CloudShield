@@ -88,7 +88,7 @@ function PerClass() {
         </div>
       ))}
       <p className="text-sm leading-relaxed text-ink-muted">
-        {tonLabel(worst)} is the weak spot: only {pct(C.recall[worst], 1)} of its flows from the unseen machines are recognised, most often mistaken for {tonLabel(worstTo)}.
+        {tonLabel(worst)} has the lowest recall: {pct(C.recall[worst], 1)} of its flows from the unseen machines are recognised; the misses are most often labelled {tonLabel(worstTo)}.
       </p>
     </div>
   )
@@ -103,7 +103,7 @@ function UnseenMachines() {
         <span className="eyebrow text-red">How it was tested</span>
         <h3 className="display text-[clamp(1.6rem,3.4vw,2.6rem)] leading-[1.05]">New machines<br />only.</h3>
         <p className="text-sm leading-relaxed text-ink-muted">
-          The flows were split with StratifiedGroupKFold, grouped by source IP: every flow from a machine goes to training or to test, never both.
+          The flows were split by source machine: {C.testMachines} machines were held out for testing, chosen so every traffic type appears on both sides, and every flow from a machine goes to training or to test, never both.
           A random split would let the model recognise machines it has already seen; this one measures how it would do on a new network.
         </p>
       </div>
@@ -118,7 +118,7 @@ function UnseenMachines() {
             all of {missing.length > 1 ? 'their' : 'its'} machines landed in training. The model still learns them, but this test cannot score them.
           </p>
         )}
-        <p className="num text-xs text-ink-dim">final model on the unseen machines: accuracy {C.final.acc.toFixed(4)} · weighted precision {C.final.precision.toFixed(4)} · weighted recall {C.final.recall.toFixed(4)} · ROC-AUC (OvR, test classes) {C.final.auc.toFixed(4)}</p>
+        <p className="num text-xs text-ink-dim">final model on the unseen machines: accuracy {C.final.acc.toFixed(4)} · weighted precision {C.final.precision.toFixed(4)} · weighted recall {C.final.recall.toFixed(4)} · ROC-AUC (OvR) {C.final.auc.toFixed(4)}</p>
       </div>
     </div>
   )
@@ -132,7 +132,7 @@ export function Confusion() {
       tone="red"
       eyebrow="Where the final model goes wrong"
       title={<>Hard questions,<br />honest answers</>}
-      deck={<>On machines it has never seen, the tuned Gradient Boosting model reaches weighted F1 {C.final.f1w.toFixed(3)}. Most attacks are recognised well; one is almost always missed.</>}
+      deck={<>On machines it has never seen, the {C.bestDisplay} model reaches weighted F1 {C.final.f1w.toFixed(3)}. {C.order.filter((c) => C.recall[c] >= 0.9).length} of the {C.order.length} traffic types are recalled at 90% or better; the weakest is {tonLabel(worst)} at {pct(C.recall[worst], 1)}.</>}
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <Heatmap />

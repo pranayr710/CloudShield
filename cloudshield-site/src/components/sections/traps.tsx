@@ -79,8 +79,8 @@ function Machines() {
   return (
     <Card index="C" title="Same machine, both sides" toggle="Split the flows at random" on={on} setOn={setOn}
       verdict={on
-        ? <>Password and XSS attacks each come from just two machines. Split at random, the same attacking machine sits in training and in test, and the model can recognise the machine instead of the attack.</>
-        : <>Flows are split by source machine (StratifiedGroupKFold on the source IP): every test flow comes from a machine the model has never seen.</>}>
+        ? <>{tonLabel(few[0].name)} and {tonLabel(few[1].name)} attacks each come from just {few[1].machines === 1 ? 'one machine' : `${few[1].machines} machines`}. Split at random, the same attacking machine sits in training and in test, and the model can recognise the machine instead of the attack.</>
+        : <>Flows are split by source machine (the source IP): every test flow comes from a machine the model has never seen.</>}>
       <div className="grid gap-1.5">
         {few.map((c) => (
           <div key={c.name} className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-3 text-xs">

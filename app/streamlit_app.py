@@ -26,26 +26,22 @@ def models():
 M = models()
 
 TRACKS = {
-    "classify": ("Classify a flow", "TON_IoT · Gradient Boosting (tuned)"),
+    "classify": ("Classify a flow", "TON_IoT · Bagging (tuned)"),
     "cluster": ("Find its cluster", "TON_IoT · K-Means"),
     "regress": ("Forecast reply size", "UNSW-NB15 · Random Forest"),
 }
 PROTOS = ["tcp", "udp", "icmp"]
-SERVICES = ["-", "http", "dns", "ssl", "ftp", "smtp", "ssh", "dhcp", "ftp-data"]
-STATES = ["SF", "S0", "REJ", "S1", "S2", "S3", "OTH", "RSTO", "RSTR", "RSTOS0", "SH", "SHR"]
+SERVICES = ["-", "dns", "http", "ftp", "ssl", "gssapi", "dce_rpc", "smb", "smb;gssapi"]  # every service in TON_IoT
+STATES = ["S0", "SF", "REJ", "OTH", "SH", "S1", "S3", "SHR", "RSTR", "RSTRH", "RSTO", "S2", "RSTOS0"]  # every state in TON_IoT
 U_PROTOS = ["tcp", "udp", "arp", "unas", "ospf", "sctp"]
 U_SERVICES = ["-", "dns", "http", "ftp", "ftp-data", "smtp", "ssh", "pop3", "snmp", "ssl", "dhcp", "irc", "radius"]
 U_STATES = ["FIN", "INT", "CON", "REQ", "RST", "ACC", "CLO"]
 
-TON_PRESETS = {
-    "Web page load": ("tcp", "http", "SF", 80, 0.22, 320, 1920, 5, 6),
-    "DNS lookup": ("udp", "dns", "SF", 53, 0.004, 74, 90, 2, 2),
-    "Rejected probe": ("tcp", "-", "REJ", 9594, 0.003, 0, 0, 2, 1),
-    "Unanswered SYN": ("tcp", "-", "S0", 445, 0.0, 0, 0, 1, 0),
-    "FTP session": ("tcp", "ftp", "SF", 21, 3.59, 86, 215, 18, 12),
-    "TLS session": ("tcp", "ssl", "SF", 443, 3.23, 1179, 5861, 15, 18),
-}
-TON_KEYS = ["proto", "service", "conn_state", "dst_port", "duration", "src_bytes", "dst_bytes", "src_pkts", "dst_pkts"]
+# one real flow per traffic type from the held-out test machines, which the classifier gets right
+TON_PRESETS = {f"{M.name(c)} (real test flow)": tuple(p["values"]) + (p["dst_internal"],) for c, p in M.CLS_PRESETS.items()}
+TON_KEYS = ["proto", "service", "conn_state", "dst_port", "duration", "src_bytes", "dst_bytes", "src_pkts", "dst_pkts",
+            "src_port", "dst_internal"]
+FIRST = next((k for k in TON_PRESETS if k.startswith("Normal")), next(iter(TON_PRESETS)))
 REG_PRESETS = {
     "Small exchange": ("tcp", "-", "FIN", 0.45, 10, 6, 738, 254, 252, 0),
     "Busy download": ("tcp", "-", "FIN", 1.85, 28, 72, 1320, 62, 252, 2),
@@ -114,7 +110,7 @@ left, right = st.columns([6, 5], gap="large")
 with left:
     if track in ("classify", "cluster"):
         if "proto" not in st.session_state:
-            apply(TON_KEYS, TON_PRESETS["Web page load"])
+            apply(TON_KEYS, TON_PRESETS[FIRST])
         preset = st.selectbox("Start from an example", ["–"] + list(TON_PRESETS))
         if preset != "–" and st.session_state.get("_ton_preset") != preset:
             apply(TON_KEYS, TON_PRESETS[preset])
@@ -133,7 +129,11 @@ with left:
             a, b = st.columns(2)
             a.number_input("Packets sent", min_value=0, step=1, key="src_pkts")
             b.number_input("Packets received", min_value=0, step=1, key="dst_pkts")
-            st.caption("Other TON_IoT columns (DNS, SSL and HTTP details) are set to their 'not applicable' values.")
+            a, b = st.columns(2)
+            a.number_input("Source port", min_value=0, max_value=65535, step=1, key="src_port")
+            b.checkbox("Destination inside the network (192.168.1.x)", key="dst_internal")
+            st.caption("Other TON_IoT columns (DNS, SSL and HTTP details) are set to their 'not applicable' values. "
+                       "The clustering model does not use the source port or the destination flag.")
             go = st.form_submit_button(TRACKS[track][0], type="primary")
     else:
         if "r_proto" not in st.session_state:

@@ -117,7 +117,7 @@ export function Forecaster() {
   return (
     <Chapter
       id="forecaster"
-      index="08"
+      index="09"
       eyebrow={`Regression · ${D.overview.dataset.name} · ${R.best}`}
       title={<>How much<br />comes back?</>}
       deck={<>Before a response finishes, can we say how big it will be? A {R.best} of 200 trees predicts the bytes a flow returns from {R.features} other statistics. On {int(D.classification.testRows)} unseen flows: R² {best.r2.toFixed(4)}, typical error {int(best.mae)} bytes.</>}

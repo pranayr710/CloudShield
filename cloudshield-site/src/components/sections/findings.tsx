@@ -7,8 +7,8 @@ import { D, T, int, pct, tonLabel } from '@/lib/data'
 const C = T.classification
 const K = T.clustering
 const by = (key: string) => C.models.find((m) => m.key === key)!
-const gbcBase = by('GradientBoostingClassifier'), gbcTuned = by(C.best), gnb = by('Gaussian NB')
-const gbcSearch = C.searches.find((s) => s.model === C.best)
+const base = by(C.bestBase), tuned = by(C.best), gnb = by('Gaussian NB')
+const strat = C.cv5.find((c) => c.model === C.best && c.kind === 'stratified')
 const worst = [...C.order].sort((a, b) => C.recall[a] - C.recall[b])[0]
 const wRow = C.confusion.norm[C.confusion.rows.indexOf(worst)]
 const worstTo = C.confusion.cols.filter((c) => c !== worst).reduce((b, c) => (wRow[C.confusion.cols.indexOf(c)] > wRow[C.confusion.cols.indexOf(b)] ? c : b))
@@ -17,13 +17,13 @@ const normalCluster = [...K.clusters].filter((c) => c.size >= 50)
 
 const FINDINGS: [string, string, string][] = [
   [C.final.f1w.toFixed(3), 'Attacks can be named on a new network',
-    `Tested only on ${C.testMachines} machines it never saw in training, the tuned Gradient Boosting model labels ${int(C.testRows)} flows with weighted F1 ${C.final.f1w.toFixed(4)} and accuracy ${pct(C.final.acc, 1)}.`],
-  [`+${(gbcTuned.f1w - gbcBase.f1w).toFixed(3)}`, 'Tuning paid off',
-    `Randomized search moved Gradient Boosting from weighted F1 ${gbcBase.f1w.toFixed(3)} to ${gbcTuned.f1w.toFixed(3)}: deeper trees (5), a smaller learning rate (0.05) and 80% row subsampling. Gaussian NB, which assumes independent features, manages ${gnb.f1w.toFixed(3)}.`],
+    `Tested only on ${C.testMachines} machines it never saw in training, the ${C.bestDisplay} model labels ${int(C.testRows)} flows with weighted F1 ${C.final.f1w.toFixed(4)} and accuracy ${pct(C.final.acc, 1)}.`],
+  [`+${(tuned.f1w - base.f1w).toFixed(3)}`, 'Tuning paid off',
+    `A grid search scored with grouped cross-validation on the training machines moved ${base.model} from weighted F1 ${base.f1w.toFixed(3)} to ${tuned.f1w.toFixed(3)} (${C.finalParamsText}). Gaussian NB, which assumes independent features, manages ${gnb.f1w.toFixed(3)}.`],
   [pct(C.recall[worst], 1), `${tonLabel(worst)} is the weak spot`,
-    `Only ${pct(C.recall[worst], 1)} of ${tonLabel(worst)} flows from the unseen machines are recognised; the rest are mostly labelled ${tonLabel(worstTo)}. On a new network the two kinds of flood look alike.`],
-  [gbcSearch ? `${gbcSearch.cv.toFixed(2)} → ${gbcSearch.test.toFixed(2)}` : '–', 'Cross-validation flatters',
-    `The tuning search scored ${gbcSearch?.cv.toFixed(3)} in cross-validation, where folds share machines, against ${gbcSearch?.test.toFixed(3)} on unseen machines. Only a grouped test set shows the real gap.`],
+    `Only ${pct(C.recall[worst], 1)} of ${tonLabel(worst)} flows from the unseen machines are recognised; the rest are mostly labelled ${tonLabel(worstTo)}.`],
+  [strat ? `${strat.mean.toFixed(2)} → ${C.final.f1w.toFixed(2)}` : '–', 'Cross-validation flatters',
+    `Ordinary stratified 5-fold cross-validation, where folds share machines, scores ${strat?.mean.toFixed(3)}; on unseen machines the same model scores ${C.final.f1w.toFixed(3)}. Only a test set grouped by machine shows the real gap.`],
   [String(K.k), 'Behaviour groups without labels',
     `K-Means finds ${K.k} clusters that are stable across resamples (ARI ${K.stability.ari?.[0].toFixed(2)}). One is ${pct(normalCluster.n)} normal traffic; the others mix attack families.`],
   [D.regression.models[0].r2.toFixed(4), 'Reply size is predictable',
@@ -67,7 +67,7 @@ function Finale() {
 export function Findings() {
   return (
     <>
-      <Chapter id="findings" index="10" eyebrow="What the data said" title={<>Six findings,<br />three tracks</>}>
+      <Chapter id="findings" index="11" eyebrow="What the data said" title={<>Six findings,<br />three tracks</>}>
         <ol className="grid gap-px overflow-hidden rounded-2xl border border-hairline-strong bg-hairline-strong md:grid-cols-2 lg:grid-cols-3">
           {FINDINGS.map(([value, head, body], i) => (
             <li key={head} className="grain group grid content-start gap-4 bg-panel p-6 transition-colors hover:bg-paper md:p-8">

@@ -5,7 +5,7 @@ import { STREAMLIT_URL } from './space'
 type Track = 'classify' | 'cluster' | 'regress'
 
 const TRACKS: { key: Track; title: string; dataset: string; model: string; blurb: string }[] = [
-  { key: 'classify', title: 'Classify a flow', dataset: 'TON_IoT', model: 'Gradient Boosting (tuned)', blurb: 'Normal traffic, or which of nine attacks?' },
+  { key: 'classify', title: 'Classify a flow', dataset: 'TON_IoT', model: 'Bagging (tuned)', blurb: 'Normal traffic, or which of nine attacks?' },
   { key: 'cluster', title: 'Find its cluster', dataset: 'TON_IoT', model: 'K-Means', blurb: 'Which behaviour group does it fall into?' },
   { key: 'regress', title: 'Forecast reply size', dataset: 'UNSW-NB15', model: 'Random Forest', blurb: 'How many bytes will come back?' },
 ]

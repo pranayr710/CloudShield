@@ -17,12 +17,13 @@ import pandas as pd
 
 # ====================================================================== classification (TON_IoT)
 TON_LOG = ["duration", "src_bytes", "dst_bytes", "src_pkts", "dst_pkts", "src_ip_bytes", "dst_ip_bytes"]
-TON_CAT = ["proto", "service", "conn_state"]
 TON_DNS_S = ["dns_AA", "dns_RD", "dns_RA", "dns_rejected"]
-TON_DROP_AFT = TON_DNS_S + ["dns_qclass", "missed_bytes", "src_ip"]
+TON_DROP_AFT = TON_DNS_S + ["dns_qclass", "missed_bytes", "src_ip", "dst_ip"]
 TON_DROP = ["http_user_agent", "http_orig_mime_types", "http_resp_mime_types", "weird_name", "weird_addl",
             "weird_notice", "http_trans_depth", "http_method", "http_uri", "http_version", "ssl_subject", "ssl_issuer"]
 TON_SSL_KEEP = ["ssl_version", "ssl_cipher", "ssl_resumed", "ssl_established"]
+# held-out machines of the notebook's grouped split: every src_ip sits wholly on one side
+TON_TEST_MACHINES = {"192.168.1.31", "192.168.1.33", "192.168.1.36", "192.168.1.39", "192.168.1.180", "192.168.1.195"}
 
 
 def ton_cls_clean(df: pd.DataFrame) -> pd.DataFrame:
@@ -36,9 +37,9 @@ def ton_cls_fit(train: pd.DataFrame) -> dict:
     """Statistics learned from the training rows only (same expressions as the notebook)."""
     return {
         "dur_hi": train["duration"].quantile(0.999),
-        # as in the notebook: the set of the ten largest port *counts*
+        # as in the notebook: the sets of the largest port *counts* (10 for dst_port, 50 for src_port)
         "ports": set(train["dst_port"].value_counts().head(10)),
-        "cats": {c: pd.Categorical(train[c]).categories for c in TON_CAT},
+        "sports": set(train["src_port"].value_counts().head(50)),
     }
 
 
@@ -47,11 +48,11 @@ def ton_cls_build(d: pd.DataFrame, fit: dict) -> pd.DataFrame:
     df["dns_present"] = d[TON_DNS_S].ne("-").any(axis=1).astype("int8")
     df["dns_query_parsed"] = d["service"].eq("dns").astype("int8")
     df["has_missed"] = df["missed_bytes"].gt(0).astype("int8")
+    df["dst_internal"] = d["dst_ip"].astype(str).str.startswith("192.168.1.").astype("int8")
     df["duration"] = df["duration"].clip(upper=fit["dur_hi"])
     df[TON_LOG] = np.log1p(df[TON_LOG].to_numpy())
     df["dst_port"] = np.where(df["dst_port"].isin(fit["ports"]), df["dst_port"], -1).astype("int16")
-    for c in TON_CAT:
-        df[c] = pd.Categorical(df[c], categories=fit["cats"][c]).codes.astype("int16")
+    df["src_port"] = np.where(df["src_port"].isin(fit["sports"]), df["src_port"], -1).astype("int16")
     return df.drop(columns=[c for c in TON_DROP_AFT + ["type", "label"] if c in df.columns])
 
 
@@ -129,10 +130,12 @@ TON_DEFAULTS = {
 }
 
 
-def ton_row(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts) -> pd.DataFrame:
-    """A TON_IoT flow from the nine form fields; IP-level byte counts add a 40-byte header per packet."""
+def ton_row(proto, service, conn_state, dst_port, duration, src_bytes, dst_bytes, src_pkts, dst_pkts,
+            src_port=49152, dst_internal=True) -> pd.DataFrame:
+    """A TON_IoT flow from the form fields; IP-level byte counts add a 40-byte header per packet."""
     row = dict(TON_DEFAULTS)
-    row.update(proto=proto, service=service, conn_state=conn_state, dst_port=int(dst_port), duration=max(0.0, float(duration)),
+    row.update(proto=proto, service=service, conn_state=conn_state, dst_port=int(dst_port), src_port=int(src_port),
+               dst_ip="192.168.1.1" if dst_internal else "8.8.8.8", duration=max(0.0, float(duration)),
                src_bytes=max(0, int(src_bytes)), dst_bytes=max(0, int(dst_bytes)), src_pkts=max(0, int(src_pkts)),
                dst_pkts=max(0, int(dst_pkts)))
     row["src_ip_bytes"] = row["src_bytes"] + 40 * row["src_pkts"]

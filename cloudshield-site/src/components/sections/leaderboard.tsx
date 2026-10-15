@@ -106,10 +106,10 @@ function ModelCard({ r, rankNo }: { r: TonModel; rankNo: number }) {
 
 /** Baseline -> tuned, for the two models the notebook tuned. */
 function TuningSteps() {
-  const pairs = [['GradientBoostingClassifier', 'GBC (tuned)'], ['Bagging', 'Bagging (tuned)']] as const
+  const pairs = [['Bagging', 'Bagging (tuned)'], ['Gradient Boosting', 'Gradient Boosting (tuned)']] as const
   return (
     <div className="grain grid content-start gap-5 rounded-2xl border border-hairline-strong bg-panel p-6 md:p-8">
-      <span className="eyebrow">Hyperparameter tuning · RandomizedSearchCV</span>
+      <span className="eyebrow">Hyperparameter tuning · grid search, grouped 3-fold CV</span>
       {pairs.map(([a, b]) => {
         const base = C.models.find((m) => m.key === a)!, tuned = C.models.find((m) => m.key === b)!
         const gain = tuned.f1w - base.f1w
@@ -129,7 +129,7 @@ function TuningSteps() {
   )
 }
 
-/** The search's cross-validation score next to the score on unseen machines. */
+/** The search's grouped cross-validation score next to the score on unseen machines. */
 function SearchGap() {
   return (
     <div className="screen grain grid content-start gap-5 rounded-2xl p-6 md:p-8">
@@ -138,9 +138,9 @@ function SearchGap() {
         <div key={s.model} className="grid gap-2">
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className="font-semibold">{s.model}</span>
-            <span className="num text-ink-muted">gap {(s.cv - s.test).toFixed(3)}</span>
+            <span className="num text-ink-muted">difference {(s.cv - s.test).toFixed(3)}</span>
           </div>
-          {[['CV on training machines', s.cv, 'bg-phosphor'], ['test on unseen machines', s.test, 'bg-red']].map(([k, v, col]) => (
+          {[['grouped CV, training machines', s.cv, 'bg-phosphor'], ['test on unseen machines', s.test, 'bg-red']].map(([k, v, col]) => (
             <div key={k as string} className="grid grid-cols-[10rem_minmax(0,1fr)_3.6rem] items-center gap-3 text-xs">
               <span className="text-ink-muted">{k}</span>
               <span className="relative h-3 rounded-sm bg-panel-2"><span className={cn('absolute inset-y-0 left-0 rounded-sm', col as string)} style={{ width: `${(v as number) * 100}%` }} /></span>
@@ -150,7 +150,7 @@ function SearchGap() {
         </div>
       ))}
       <p className="text-xs leading-relaxed text-ink-dim">
-        The search scored each setting by 3-fold cross-validation on a 35% sample of the training rows. Those folds share machines, so the scores look near-perfect. The test fold holds machines the model never saw; the drop is the honest measure of how it would do on a new network.
+        The search scored up to eight settings per model by 3-fold cross-validation grouped by machine, on the training rows only. Most attack types come from one to three training machines, so a validation fold often holds every machine of a type and the model never trains on it: these scores sit far below the test score. They are only used to rank the settings; the test set, where every type is present on both sides, is scored once.
       </p>
     </div>
   )
@@ -169,7 +169,7 @@ function Folds() {
         <span className="text-xs text-ink-dim">grouped: each fold validates on machines its training folds never saw · stratified: folds share machines</span>
       </div>
       {C.cv5.map((c, k) => (
-        <div key={c.model} className="grid gap-2">
+        <div key={c.model + c.kind} className="grid gap-2">
           <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
             <span className={k === 0 ? 'font-semibold' : 'text-ink-muted'}>{c.model} <span className="chip ml-1">{c.kind}</span></span>
             <span className="num">weighted F1 {c.mean.toFixed(4)} <span className="text-ink-dim">± {c.std.toFixed(4)} · macro F1 {c.f1m.toFixed(3)} · accuracy {c.acc.toFixed(3)}</span></span>

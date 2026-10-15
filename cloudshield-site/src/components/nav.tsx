@@ -9,6 +9,7 @@ const LINKS = [
   ['errors', 'Errors'],
   ['play', 'Play'],
   ['clusters', 'Clusters'],
+  ['compare', 'Compare'],
   ['forecaster', 'Regression'],
   ['findings', 'Findings'],
 ] as const

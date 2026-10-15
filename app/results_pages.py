@@ -19,7 +19,7 @@ name = lambda c: LABEL.get(c, c.capitalize())  # noqa: E731
 SHOW_CV5 = True  # set False to leave the 5-fold CV results out
 PART_A = {"Logistic Regression", "K-Nearest Neighbors", "Gaussian NB", "Decision Tree", "SVC (RBF)"}
 
-PAGES = ["Live predictions", "Overview", "Classification", "Clustering", "Regression", "Reports and downloads"]
+PAGES = ["Live predictions", "Overview", "Classification", "Clustering", "Comparative study", "Regression", "Reports and downloads"]
 
 
 @st.cache_data
@@ -72,8 +72,8 @@ def classification() -> None:
     st.header("Classification · TON_IoT")
     st.write(
         f"Ten classifiers (five Part A, five Part B) plus the two tuned configurations, trained on {C['trainRows']:,} flows from "
-        f"{C['trainMachines']} machines and tested on {C['testRows']:,} flows from {C['testMachines']} machines never seen in training "
-        f"(StratifiedGroupKFold grouped by source IP)."
+        f"{C['trainMachines']} machines and tested on {C['testRows']:,} flows from {C['testMachines']} machines never seen in training. "
+        f"All {len(C['order'])} traffic types appear on both sides of the split."
     )
     board = pd.DataFrame(C["models"]).rename(columns={"model": "Model", "acc": "Accuracy", "f1w": "Weighted F1", "f1m": "Macro F1", "params": "Settings",
                                                       "precision": "Precision (w)", "recall": "Recall (w)", "auc": "ROC-AUC (OvR)"})
@@ -83,39 +83,32 @@ def classification() -> None:
     st.dataframe(board[["Model", "Part", *metric_cols, "Settings"]], hide_index=True, use_container_width=True,
                  column_config={k: st.column_config.ProgressColumn(format="%.4f", min_value=0.0, max_value=1.0) for k in metric_cols})
 
-    st.subheader("Final model: Gradient Boosting (tuned)")
+    st.subheader(f"Final model: {C['bestDisplay']}")
     f = C["final"]
     cols = st.columns(6)
     for col, (k, v) in zip(cols, [("Accuracy", f["acc"]), ("Precision (w)", f["precision"]), ("Recall (w)", f["recall"]),
                                   ("F1 (w)", f["f1w"]), ("F1 (macro)", f["f1m"]), ("ROC-AUC (OvR)", f["auc"])]):
         col.metric(k, f"{v:.4f}")
-    st.caption("ROC-AUC is one-vs-rest over the classes present in the test fold. " +
-               (f"No test flows exist for {', '.join(name(c) for c in C['missingFromTest'])}: all their machines are in the training set." if C["missingFromTest"] else ""))
+    st.caption("ROC-AUC is one-vs-rest, averaged over the 10 classes.")
 
     left, right = st.columns(2)
     with left:
-        st.markdown("**Hyperparameter tuning (RandomizedSearchCV)**")
+        st.markdown("**Hyperparameter tuning (grouped 3-fold CV on the training machines)**")
         by = {m["key"]: m for m in C["models"]}
         st.dataframe(pd.DataFrame([
-            {"Model": "Gradient Boosting", "Baseline F1": by["GradientBoostingClassifier"]["f1w"], "Tuned F1": by["GBC (tuned)"]["f1w"]},
             {"Model": "Bagging", "Baseline F1": by["Bagging"]["f1w"], "Tuned F1": by["Bagging (tuned)"]["f1w"]},
+            {"Model": "Gradient Boosting", "Baseline F1": by["Gradient Boosting"]["f1w"], "Tuned F1": by["Gradient Boosting (tuned)"]["f1w"]},
         ]).assign(Change=lambda d: d["Tuned F1"] - d["Baseline F1"]), hide_index=True, use_container_width=True)
         for s in C["searches"]:
-            st.caption(f"{s['model']}: best {s['params']}; CV {s['cv']:.4f} on training machines vs {s['test']:.4f} on unseen machines.")
+            st.caption(f"{s['model']}: best {s['params']}; grouped CV {s['cv']:.4f} on training machines vs {s['test']:.4f} on unseen machines.")
     with right:
-        if SHOW_CV5:
+        if SHOW_CV5 and C["cv5"]:
             st.markdown("**5-fold cross-validation of the top two (weighted F1)**")
-            rows = []
-            for label, path in (("grouped by machine", RES / "classification_cv5_top2.csv"),
-                                ("stratified", RES / "classification_cv5_top2_stratified.csv")):
-                df = csv(path)
-                if df is not None:
-                    rows += [{"CV": label, "Model": r["Model"], "Mean": r["CV F1w mean"], "Std": r["CV F1w std"],
-                              "Folds": r["F1w per fold"]} for _, r in df.iterrows()]
-            if rows:
-                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
-                st.caption("Grouped folds keep each machine on one side. A fold that holds every machine of an attack type "
-                           "never trains on it, so that fold's score collapses; stratified folds share machines and score higher.")
+            st.dataframe(pd.DataFrame([{"CV": "grouped by machine" if c["kind"] == "grouped" else "stratified", "Model": c["model"],
+                                        "Mean": c["mean"], "Std": c["std"], "Folds": ", ".join(f"{x:.3f}" for x in c["folds"])}
+                                       for c in C["cv5"]]), hide_index=True, use_container_width=True)
+            st.caption("Grouped folds keep each machine on one side. A fold that holds every machine of an attack type "
+                       "never trains on it, so that fold's score collapses; stratified folds share machines and score higher.")
 
     st.subheader("Where the final model goes wrong")
     cm = C["confusion"]
@@ -126,9 +119,72 @@ def classification() -> None:
                  hide_index=True, use_container_width=True)
     a, b = st.columns(2)
     with a:
-        image(RES / "figures/toniot_partB/cls_roc_gbc_bag.png", "ROC curves, GBC (tuned) vs Bagging")
+        image(RES / "figures/toniot_partB/cls_roc_top2.png", "ROC curves of the top two models")
     with b:
-        image(RES / "figures/toniot_partB/cls_cm_4way.png", "Confusion matrices, tuned vs baseline")
+        image(RES / "figures/toniot_partB/cls_cm_top2.png", "Confusion matrices of the top two models")
+
+
+# ---------------------------------------------------------------- comparative study
+def comparative() -> None:
+    CMP, FIG = RES / "comparative", RES / "figures/comparative"
+    st.header("Comparative study")
+    st.write("All algorithms of both Review 2 tracks compared side by side, from `notebooks/04_comparative_study.ipynb`.")
+    tab_c, tab_k = st.tabs(["Classification · 10 algorithms", "Clustering"])
+    with tab_c:
+        t = csv(CMP / "classification_comparison.csv")
+        if t is None:
+            st.info("Run notebooks/04_comparative_study.ipynb to produce the comparison.")
+        else:
+            m = ["Accuracy", "Precision (w)", "Recall (w)", "F1 (weighted)", "F1 (macro)", "ROC-AUC (OvR)"]
+            st.dataframe(t, hide_index=True, use_container_width=True,
+                         column_config={k: st.column_config.ProgressColumn(format="%.4f", min_value=0.0, max_value=1.0) for k in m} |
+                         {"Train time (s)": st.column_config.NumberColumn(format="%.1f"),
+                          "Predict time (s)": st.column_config.NumberColumn(format="%.2f")})
+            a, b = st.columns(2)
+            with a:
+                image(FIG / "cls_01_rank_heatmap.png", "Rank of each model on each metric")
+            with b:
+                image(FIG / "cls_07_f1_vs_time.png", "Weighted F1 against training time")
+            image(FIG / "cls_04_per_class_f1.png", "Per-class F1 of every configuration")
+            a, b = st.columns(2)
+            with a:
+                image(FIG / "cls_08_families.png", "Algorithm families")
+            with b:
+                image(FIG / "cls_09_tuning_delta.png", "Tuned minus base, per metric")
+            fam = csv(CMP / "classification_families.csv")
+            if fam is not None:
+                st.dataframe(fam, hide_index=True, use_container_width=True)
+            a, b = st.columns(2)
+            with a:
+                image(FIG / "cls_10_cv_stability.png", "5-fold CV of the top two: grouped vs stratified")
+            with b:
+                image(FIG / "cls_11_bootstrap_ci.png", "95% bootstrap intervals of weighted F1")
+            mc = csv(CMP / "classification_mcnemar.csv")
+            if mc is not None:
+                st.markdown("**McNemar's test: the best model against each other model (same test flows)**")
+                st.dataframe(mc, hide_index=True, use_container_width=True)
+            image(FIG / "cls_05_confusion_all.png", "Confusion matrices of all configurations")
+    with tab_k:
+        k = csv(CMP / "clustering_comparison.csv")
+        if k is None:
+            st.info("Run notebooks/04_comparative_study.ipynb to produce the comparison.")
+        else:
+            st.dataframe(k, hide_index=True, use_container_width=True)
+            st.caption("Required: K-Means and Agglomerative (four linkages). Extra, for reference: MiniBatch K-Means, Gaussian Mixture, "
+                       "BIRCH, DBSCAN. ARI, NMI, homogeneity, completeness and purity use the true traffic type after fitting only.")
+            image(FIG / "clu_01_k_sweep.png", "Every metric across k")
+            a, b = st.columns(2)
+            with a:
+                image(FIG / "clu_07_rank_heatmap.png", "Rank of each clustering on each metric")
+            with b:
+                image(FIG / "clu_05_stability.png", "Agreement between runs")
+            image(FIG / "clu_03_pca_all.png", "Every clustering on the same PCA axes")
+            image(FIG / "clu_02_cluster_vs_type.png", "Traffic types inside each cluster")
+            a, b = st.columns(2)
+            with a:
+                image(FIG / "clu_04_tsne_compare.png", "t-SNE: K-Means vs Agglomerative vs true type")
+            with b:
+                image(FIG / "clu_06_runtime.png", "Fit time against data size")
 
 
 # ---------------------------------------------------------------- clustering
@@ -188,9 +244,17 @@ def regression() -> None:
 def reports() -> None:
     st.header("Reports and downloads")
     files = [
-        ("Classification · 12 configurations (TON_IoT)", RES / "classification_12model_ton_iot.csv"),
+        ("Classification · leaderboard of 03_classification_1.ipynb (TON_IoT)", RES / "classification_10model_ton_iot.csv"),
+        ("Classification · per-class report of the final model", RES / "classification_10model_per_class.csv"),
         *([("Classification · 5-fold CV, grouped by machine", RES / "classification_cv5_top2.csv"),
            ("Classification · 5-fold CV, stratified", RES / "classification_cv5_top2_stratified.csv")] if SHOW_CV5 else []),
+        ("Comparative study · classification, all metrics and times", RES / "comparative/classification_comparison.csv"),
+        ("Comparative study · per-class F1 of every model", RES / "comparative/classification_per_class_f1.csv"),
+        ("Comparative study · bootstrap intervals", RES / "comparative/classification_bootstrap_ci.csv"),
+        ("Comparative study · McNemar tests", RES / "comparative/classification_mcnemar.csv"),
+        ("Comparative study · clustering, all metrics", RES / "comparative/clustering_comparison.csv"),
+        ("Comparative study · clustering across k", RES / "comparative/clustering_k_sweep.csv"),
+        ("Comparative study · clustering stability", RES / "comparative/clustering_stability_ari.csv"),
         ("Clustering · metrics", RES / "clustering_metrics_ton_iot.csv"),
         ("Clustering · stability over 5 runs", RES / "clustering_stability_ton_iot.csv"),
         ("Regression · 10 models (UNSW-NB15)", REP / "regression_results.csv"),
@@ -209,5 +273,5 @@ def reports() -> None:
 
 
 def render(page: str) -> None:
-    {"Overview": overview, "Classification": classification, "Clustering": clustering,
+    {"Overview": overview, "Classification": classification, "Clustering": clustering, "Comparative study": comparative,
      "Regression": regression, "Reports and downloads": reports}[page]()
