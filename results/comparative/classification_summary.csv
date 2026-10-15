@@ -1,0 +1,9 @@
+Question,Model,Value
+Best Accuracy,Bagging (tuned),0.9217171717171717
+Best Precision (w),Bagging (tuned),0.9386214464504475
+Best Recall (w),Bagging (tuned),0.9217171717171717
+Best F1 (weighted),Bagging (tuned),0.9248894766652742
+Best F1 (macro),Bagging,0.8463269604627186
+Best ROC-AUC (OvR),Gradient Boosting (tuned),0.9922685978142385
+Fastest to train (s),K-Nearest Neighbors,0.19711169999209233
+Best mean rank over the six metrics,Bagging (tuned),1.5

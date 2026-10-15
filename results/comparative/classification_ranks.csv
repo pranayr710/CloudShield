@@ -1,0 +1,13 @@
+Model,Accuracy,Precision (w),Recall (w),F1 (weighted),F1 (macro),ROC-AUC (OvR),Mean rank
+Bagging (tuned),1,1,1,1,2,3,1.5
+Bagging,2,2,2,2,1,5,2.3333333333333335
+Gradient Boosting,3,3,3,3,3,2,2.8333333333333335
+Gradient Boosting (tuned),5,4,5,5,4,1,4.0
+Random Forest,4,7,4,6,6,4,5.166666666666667
+K-Nearest Neighbors,6,5,6,7,5,9,6.333333333333333
+Decision Tree,7,6,7,4,7,11,7.0
+Neural Network,8,8,8,8,8,8,8.0
+AdaBoost,9,9,9,9,9,6,8.5
+SVC (RBF),10,10,10,10,10,10,10.0
+Logistic Regression,11,11,11,11,11,7,10.333333333333334
+Gaussian NB,12,12,12,12,12,12,12.0

@@ -1,0 +1,12 @@
+Compared with,only Bagging (tuned) right,only other right,p-value (exact McNemar),significant at 0.05
+Bagging,155,28,1.645815236206231e-22,True
+Gradient Boosting,513,120,9.275526909757611e-59,True
+Decision Tree,575,130,1.3341857702351362e-67,True
+Gradient Boosting (tuned),522,106,6.201886266892572e-67,True
+Random Forest,528,114,1.4422384468181009e-64,True
+K-Nearest Neighbors,576,137,7.609630972807382e-65,True
+Neural Network,609,120,1.379716967577484e-79,True
+AdaBoost,955,169,1.5669261613314524e-133,True
+SVC (RBF),1714,110,0.0,True
+Logistic Regression,1923,93,0.0,True
+Gaussian NB,6059,186,0.0,True
